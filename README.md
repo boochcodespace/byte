@@ -102,8 +102,15 @@ Nothing in `~/Byte/` is ever committed to this repository.
 To verify your API key is working without opening the browser:
 
 ```bash
-cd backend
-node ../smoke-test.js
+node smoke-test.js
+```
+
+Expected output:
+```
+✓  API key found in ~/Byte/settings.json
+✓  Claude API responded: BYTE_OK
+
+Smoke test passed. Byte is ready to generate artifacts.
 ```
 
 ## Development Notes
