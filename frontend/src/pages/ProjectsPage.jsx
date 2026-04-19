@@ -1,32 +1,33 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import ProjectCard from '../components/ProjectCard'
+import { api } from '../lib/apiFetch'
+import { useAsyncAction } from '../hooks/useAsyncAction'
+import { actionPropsFor } from '../lib/errorActions'
+import LoadingState from '../components/LoadingState'
+import ErrorState from '../components/ErrorState'
 
 // ProjectsPage is the new home: a grid of projects + an inline form
 // to create a new project. Each project owns sources and a style guide.
 function ProjectsPage() {
   const [projects, setProjects] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
 
   const [showForm, setShowForm] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newDescription, setNewDescription] = useState('')
   const [newStyleGuide, setNewStyleGuide] = useState('')
   const [newTargetAudience, setNewTargetAudience] = useState('')
-  const [creating, setCreating] = useState(false)
-  const [createError, setCreateError] = useState(null)
+
+  const loadAction = useAsyncAction()
+  const createAction = useAsyncAction()
+
+  const loadProjects = useCallback(async () => {
+    const data = await loadAction.run(() => api.get('/api/projects'))
+    if (Array.isArray(data)) setProjects(data)
+  }, [loadAction])
 
   useEffect(() => {
-    fetch('/api/projects')
-      .then(r => r.json())
-      .then(data => {
-        setProjects(Array.isArray(data) ? data : [])
-        setLoading(false)
-      })
-      .catch(() => {
-        setError('Could not load projects. Is the backend running? (npm run dev)')
-        setLoading(false)
-      })
+    loadProjects()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function resetForm() {
@@ -35,37 +36,24 @@ function ProjectsPage() {
     setNewDescription('')
     setNewStyleGuide('')
     setNewTargetAudience('')
-    setCreateError(null)
+    createAction.clearError()
   }
 
-  async function handleCreateProject(e) {
-    e.preventDefault()
-    setCreating(true)
-    setCreateError(null)
-    try {
-      const res = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newTitle,
-          description: newDescription,
-          styleGuide: newStyleGuide,
-          targetAudience: newTargetAudience
-        })
-      })
-      const data = await res.json()
-      if (data.slug) {
-        setProjects(prev => [data, ...prev])
-        resetForm()
-      } else {
-        setCreateError(data.error || 'Something went wrong.')
-      }
-    } catch {
-      setCreateError('Could not reach the backend.')
-    } finally {
-      setCreating(false)
+  const handleCreateProject = useCallback(async (e) => {
+    if (e) e.preventDefault()
+    const data = await createAction.run(() => api.post('/api/projects', {
+      title: newTitle,
+      description: newDescription,
+      styleGuide: newStyleGuide,
+      targetAudience: newTargetAudience,
+    }))
+    if (data) {
+      setProjects(prev => [data, ...prev])
+      resetForm()
     }
-  }
+    // on error, form fields stay intact so the user can retry
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createAction, newTitle, newDescription, newStyleGuide, newTargetAudience])
 
   return (
     <div className="projects-page">
@@ -137,15 +125,21 @@ function ProjectsPage() {
               />
             </div>
 
-            {createError && <div className="status-message error">{createError}</div>}
+            {createAction.error && (
+              <ErrorState
+                message={createAction.error.userMessage}
+                onRetry={handleCreateProject}
+                {...actionPropsFor(createAction.error.errorType)}
+              />
+            )}
 
             <div className="form-actions">
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={creating || !newTitle.trim()}
+                disabled={createAction.loading || !newTitle.trim()}
               >
-                {creating ? 'Creating...' : 'Create project'}
+                {createAction.loading ? 'Creating...' : 'Create project'}
               </button>
               <button type="button" className="btn btn-secondary" onClick={resetForm}>
                 Cancel
@@ -155,10 +149,14 @@ function ProjectsPage() {
         </div>
       )}
 
-      {loading ? (
-        <div className="loading">Loading projects...</div>
-      ) : error ? (
-        <div className="status-message error">{error}</div>
+      {loadAction.loading ? (
+        <LoadingState message="Loading projects..." />
+      ) : loadAction.error ? (
+        <ErrorState
+          message={loadAction.error.userMessage}
+          onRetry={loadProjects}
+          {...actionPropsFor(loadAction.error.errorType)}
+        />
       ) : projects.length === 0 ? (
         <div className="empty-state">
           <p>No projects yet. Click <strong>+ New project</strong> to get started.</p>

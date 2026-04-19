@@ -1,4 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { api } from '../lib/apiFetch'
+import { useAsyncAction } from '../hooks/useAsyncAction'
+import LoadingState from '../components/LoadingState'
+import ErrorState from '../components/ErrorState'
 
 // Settings page: lets the user paste their Anthropic API key.
 // The key is sent to the backend and saved in ~/Byte/settings.json.
@@ -6,43 +10,32 @@ import { useState, useEffect } from 'react'
 function Settings() {
   const [apiKey, setApiKey] = useState('')
   const [keyInfo, setKeyInfo] = useState(null)   // { hasApiKey, apiKeyPreview }
-  const [status, setStatus] = useState(null)      // { type: 'success'|'error', message }
-  const [saving, setSaving] = useState(false)
+  const [successMessage, setSuccessMessage] = useState(null)
+
+  const loadAction = useAsyncAction()
+  const saveAction = useAsyncAction()
+
+  const loadSettings = useCallback(async () => {
+    const data = await loadAction.run(() => api.get('/api/settings'))
+    if (data) setKeyInfo(data)
+  }, [loadAction])
 
   // On mount, ask the backend whether a key is already saved
   useEffect(() => {
-    fetch('/api/settings')
-      .then(r => r.json())
-      .then(data => setKeyInfo(data))
-      .catch(() => setKeyInfo({ hasApiKey: false, apiKeyPreview: '' }))
+    loadSettings()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleSave = async (e) => {
-    e.preventDefault()
-    setSaving(true)
-    setStatus(null)
-
-    try {
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey })
-      })
-      const data = await res.json()
-
-      if (data.success) {
-        setStatus({ type: 'success', message: 'API key saved. You\'re ready to generate artifacts.' })
-        setKeyInfo({ hasApiKey: true, apiKeyPreview: '••••••••' + apiKey.trim().slice(-4) })
-        setApiKey('')
-      } else {
-        setStatus({ type: 'error', message: data.error || 'Failed to save.' })
-      }
-    } catch {
-      setStatus({ type: 'error', message: 'Could not reach the backend. Make sure npm run dev is running.' })
-    } finally {
-      setSaving(false)
+  const handleSave = useCallback(async (e) => {
+    if (e) e.preventDefault()
+    setSuccessMessage(null)
+    const result = await saveAction.run(() => api.post('/api/settings', { apiKey }))
+    if (result) {
+      setSuccessMessage("API key saved. You're ready to generate artifacts.")
+      setKeyInfo({ hasApiKey: true, apiKeyPreview: '••••••••' + apiKey.trim().slice(-4) })
+      setApiKey('')
     }
-  }
+  }, [apiKey, saveAction])
 
   return (
     <div className="settings-page">
@@ -56,6 +49,17 @@ function Settings() {
           It is never committed to this Git repository and is only sent to Anthropic's API
           when you click Generate.
         </p>
+
+        {loadAction.loading && !keyInfo && (
+          <LoadingState subtle message="Checking for saved key..." />
+        )}
+
+        {loadAction.error && !keyInfo && (
+          <ErrorState
+            message={loadAction.error.userMessage}
+            onRetry={loadSettings}
+          />
+        )}
 
         {/* Show a badge if a key is already stored */}
         {keyInfo?.hasApiKey && (
@@ -77,19 +81,27 @@ function Settings() {
               onChange={e => setApiKey(e.target.value)}
               autoComplete="off"
               spellCheck={false}
+              disabled={saveAction.loading}
             />
           </div>
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={!apiKey.trim() || saving}
+            disabled={!apiKey.trim() || saveAction.loading}
           >
-            {saving ? 'Saving...' : 'Save key'}
+            {saveAction.loading ? 'Saving...' : 'Save key'}
           </button>
         </form>
 
-        {status && (
-          <div className={`status-message ${status.type}`}>{status.message}</div>
+        {successMessage && (
+          <div className="status-message success">{successMessage}</div>
+        )}
+
+        {saveAction.error && (
+          <ErrorState
+            message={saveAction.error.userMessage}
+            onRetry={handleSave}
+          />
         )}
       </div>
 

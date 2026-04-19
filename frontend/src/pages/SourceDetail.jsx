@@ -1,6 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getRenderer, DEFAULT_TYPE } from '../artifact-renderers/registry'
+import { api } from '../lib/apiFetch'
+import { useAsyncAction } from '../hooks/useAsyncAction'
+import { actionPropsFor } from '../lib/errorActions'
+import LoadingState from '../components/LoadingState'
+import ErrorState from '../components/ErrorState'
 
 // SourceDetail: the full page for one source within a project.
 // Left column: editable source text + artifact list + artifact preview.
@@ -17,113 +22,102 @@ function SourceDetail() {
     useCase: '',
     learningObjectives: ''
   })
-  const [loading, setLoading] = useState(true)
-  const [pageError, setPageError] = useState(null)
 
-  const [saving, setSaving] = useState(false)
   const [saveLabel, setSaveLabel] = useState('Save')
-
-  // Generation state
-  const [generating, setGenerating] = useState(false)
-  const [genError, setGenError] = useState(null)
-  const [artifactType, setArtifactType] = useState('flip-card-deck')
   const [selectedArtifact, setSelectedArtifact] = useState(null)
 
+  const [artifactType, setArtifactType] = useState('flip-card-deck')
+
   // Ephemeral per-generation fields — cleared after a successful generation
-  // so they don't silently carry over to the next one.
+  // so they don't silently carry over to the next one. Preserved on error
+  // so the user doesn't lose their typed steering after a failed call.
   const [perGenerationPrompt, setPerGenerationPrompt] = useState('')
   const [perGenerationObjective, setPerGenerationObjective] = useState('')
 
+  const loadAction = useAsyncAction()
+  const saveAction = useAsyncAction()
+  const generateAction = useAsyncAction()
+
+  const loadSource = useCallback(async () => {
+    const data = await loadAction.run(() => api.get(sourceUrl))
+    if (!data) return
+    setSource(data)
+    setContent(data.content || '')
+    setContext({
+      role: data.context?.role || '',
+      experience: data.context?.experience || '',
+      useCase: data.context?.useCase || '',
+      learningObjectives: data.context?.learningObjectives || ''
+    })
+    if (data.artifacts?.length > 0) {
+      setSelectedArtifact(data.artifacts[0])
+    }
+  }, [loadAction, sourceUrl])
+
   // Load source on mount
   useEffect(() => {
-    fetch(sourceUrl)
-      .then(r => r.json())
-      .then(data => {
-        if (data.error) throw new Error(data.error)
-        setSource(data)
-        setContent(data.content || '')
-        // Older sources may not have learningObjectives — default to ''
-        setContext({
-          role: data.context?.role || '',
-          experience: data.context?.experience || '',
-          useCase: data.context?.useCase || '',
-          learningObjectives: data.context?.learningObjectives || ''
-        })
-        if (data.artifacts?.length > 0) {
-          setSelectedArtifact(data.artifacts[0])
-        }
-        setLoading(false)
-      })
-      .catch(err => {
-        setPageError(err.message || 'Could not load source.')
-        setLoading(false)
-      })
+    loadSource()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceUrl])
 
   const handleSave = async () => {
-    setSaving(true)
     setSaveLabel('Saving...')
-    try {
-      await fetch(sourceUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, context })
-      })
+    const result = await saveAction.run(() => api.put(sourceUrl, { content, context }))
+    if (result) {
       setSaveLabel('Saved ✓')
       setTimeout(() => setSaveLabel('Save'), 2000)
-    } catch {
-      setSaveLabel('Save failed')
-      setTimeout(() => setSaveLabel('Save'), 2000)
-    } finally {
-      setSaving(false)
+    } else {
+      // saveAction.error is already populated; the button just resets
+      setSaveLabel('Save')
     }
   }
 
-  // Save latest content/context to disk, then ask backend to generate
-  const handleGenerate = async () => {
-    setGenerating(true)
-    setGenError(null)
-
-    // Persist any unsaved edits first so the backend reads the latest text
-    await fetch(sourceUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content, context })
-    }).catch(() => {})
-
+  // Save latest content/context to disk, then ask backend to generate.
+  // On error, the user's content, context, and per-generation fields
+  // are left intact — they can fix the underlying issue and retry.
+  const handleGenerate = useCallback(async () => {
+    // Persist any unsaved edits first so the backend reads the latest text.
+    // Silently ignore persistence failures here — generate will surface
+    // its own error if it can't read the source.
     try {
-      const res = await fetch(`${sourceUrl}/artifacts/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          artifactType,
-          perGenerationPrompt,
-          perGenerationObjective
-        })
-      })
-      const data = await res.json()
-
-      if (data.error) {
-        setGenError(data.error)
-      } else {
-        setSource(prev => ({
-          ...prev,
-          artifacts: [data, ...(prev.artifacts || [])]
-        }))
-        setSelectedArtifact(data)
-        // Ephemeral per-generation fields reset on success
-        setPerGenerationPrompt('')
-        setPerGenerationObjective('')
-      }
+      await api.put(sourceUrl, { content, context })
     } catch {
-      setGenError('Could not reach the backend. Make sure npm run dev is running.')
-    } finally {
-      setGenerating(false)
+      // swallowed intentionally
     }
-  }
 
-  if (loading) return <div className="loading">Loading source...</div>
-  if (pageError) return <div className="status-message error">{pageError}</div>
+    const data = await generateAction.run(() =>
+      api.post(`${sourceUrl}/artifacts/generate`, {
+        artifactType,
+        perGenerationPrompt,
+        perGenerationObjective,
+      })
+    )
+    if (!data) return  // error state already set on generateAction.error
+
+    setSource(prev => ({
+      ...prev,
+      artifacts: [data, ...(prev.artifacts || [])]
+    }))
+    setSelectedArtifact(data)
+    // Ephemeral per-generation fields reset only on success
+    setPerGenerationPrompt('')
+    setPerGenerationObjective('')
+  }, [sourceUrl, content, context, artifactType, perGenerationPrompt, perGenerationObjective, generateAction])
+
+  // ── Page-level load state ───────────────────────────────────────────
+  if (loadAction.loading && !source) {
+    return <LoadingState message="Loading source..." />
+  }
+  if (loadAction.error && !source) {
+    return (
+      <ErrorState
+        message={loadAction.error.userMessage}
+        onRetry={loadSource}
+        {...actionPropsFor(loadAction.error.errorType)}
+      />
+    )
+  }
+  if (!source) return null
 
   return (
     <div className="source-detail">
@@ -145,9 +139,9 @@ function SourceDetail() {
               <button
                 className="btn btn-secondary btn-sm"
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saveAction.loading}
               >
-                {saveLabel}
+                {saveAction.loading ? 'Saving...' : saveLabel}
               </button>
             </div>
             <textarea
@@ -156,6 +150,13 @@ function SourceDetail() {
               onChange={e => setContent(e.target.value)}
               rows={20}
             />
+            {saveAction.error && (
+              <ErrorState
+                message={saveAction.error.userMessage}
+                onRetry={handleSave}
+                {...actionPropsFor(saveAction.error.errorType)}
+              />
+            )}
           </div>
 
           {source.artifacts?.length > 0 && (
@@ -259,6 +260,7 @@ function SourceDetail() {
               <select
                 value={artifactType}
                 onChange={e => setArtifactType(e.target.value)}
+                disabled={generateAction.loading}
               >
                 <option value="flip-card-deck">Flip Card Deck</option>
               </select>
@@ -278,6 +280,7 @@ function SourceDetail() {
                 value={perGenerationPrompt}
                 onChange={e => setPerGenerationPrompt(e.target.value)}
                 rows={3}
+                disabled={generateAction.loading}
               />
             </div>
 
@@ -295,24 +298,33 @@ function SourceDetail() {
                 value={perGenerationObjective}
                 onChange={e => setPerGenerationObjective(e.target.value)}
                 rows={2}
+                disabled={generateAction.loading}
               />
             </div>
 
             <button
               className="btn btn-primary generate-btn"
               onClick={handleGenerate}
-              disabled={generating}
+              disabled={generateAction.loading}
             >
-              {generating ? '✨ Generating...' : '✨ Generate'}
+              {generateAction.loading ? '✨ Generating...' : '✨ Generate'}
             </button>
 
-            {generating && (
-              <p className="generating-note">
-                Calling Claude — takes about 10–20 seconds.
-              </p>
+            {generateAction.loading && (
+              <LoadingState
+                subtle
+                message="Calling Claude..."
+                hint="This may take up to 30 seconds."
+              />
             )}
 
-            {genError && <div className="status-message error">{genError}</div>}
+            {generateAction.error && (
+              <ErrorState
+                message={generateAction.error.userMessage}
+                onRetry={handleGenerate}
+                {...actionPropsFor(generateAction.error.errorType)}
+              />
+            )}
           </div>
         </div>
       </div>
