@@ -106,7 +106,9 @@ Byte extracts text and embedded images from uploaded files into a canonical shap
 
 When a source has embedded images, each one is catalogued in `media/manifest.json` with rich metadata: sequential filename, source format, position context (`"after paragraph N"`, `"page N"`, `"slide N"`), up to ~200 chars of nearby text, pixel dimensions, and extraction timestamp.
 
-Today, generation uses these manifests **as text context only** — Claude sees image filenames and their nearbyText and references them by name in artifact output. Claude does not yet see the image pixels themselves. That upgrade (Level 3 — vision via Claude's multimodal capability) is a later phase.
+Generation uses these manifests **as text context**: the backend formats the manifest into an AVAILABLE SOURCE IMAGES section of the user message, and Claude references images by filename when a visual anchor would help a card. The flip card renderer then fetches those images from the source's media folder and displays them on each card with a "Source: slide 3" / "Source: page 12" caption. Filenames Claude can't be tied back to the manifest are discarded (nulled out) so the renderer never shows a broken image.
+
+Claude does not yet see image pixels — only their text metadata. That upgrade (Level 3 — vision via Claude's multimodal capability) is a later phase. Today's Level 1 approach keeps generation fast and cheap while still producing artifacts that reuse the SME's actual diagrams.
 
 ## Where Your Data Lives
 

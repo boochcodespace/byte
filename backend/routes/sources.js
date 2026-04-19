@@ -320,6 +320,53 @@ router.post('/upload', (req, res) => {
   })
 })
 
+// GET /api/projects/:projectSlug/sources/:sourceSlug/media/:filename
+//
+// Serves an extracted source image from the source's media/ folder.
+//
+// Security: the main risk here is path traversal — a malicious caller
+// could ask for "../../../etc/passwd" as :filename and, without care,
+// make the handler read outside the media folder. We defend in depth:
+//   1. Reject filenames that contain any path separators, ".." segments,
+//      or NUL bytes, or that differ from their basename form.
+//   2. Resolve the joined path and confirm it still lives inside the
+//      resolved media directory (catches symlink tricks too).
+//   3. Block manifest.json explicitly — it is catalogue data, not media.
+//   4. Only serve regular files that actually exist.
+router.get('/:sourceSlug/media/:filename', (req, res) => {
+  const { projectSlug, sourceSlug, filename } = req.params
+
+  if (!filename ||
+      filename.includes('..') ||
+      filename.includes('/') ||
+      filename.includes('\\') ||
+      filename.includes('\0') ||
+      filename !== path.basename(filename)) {
+    return res.status(404).json({ error: 'Not found' })
+  }
+  if (filename === 'manifest.json') {
+    return res.status(404).json({ error: 'Not found' })
+  }
+
+  const mediaDir = path.resolve(getSourceDir(projectSlug, sourceSlug), 'media')
+  const filePath = path.resolve(mediaDir, filename)
+  if (filePath !== mediaDir && !filePath.startsWith(mediaDir + path.sep)) {
+    return res.status(404).json({ error: 'Not found' })
+  }
+
+  let stat
+  try {
+    stat = fs.statSync(filePath)
+  } catch {
+    return res.status(404).json({ error: 'Not found' })
+  }
+  if (!stat.isFile()) return res.status(404).json({ error: 'Not found' })
+
+  // sendFile sets Content-Type automatically from the extension via
+  // Express's built-in mime lookup.
+  res.sendFile(filePath)
+})
+
 // PUT /api/projects/:projectSlug/sources/:sourceSlug — update content and/or context
 router.put('/:sourceSlug', (req, res) => {
   const { projectSlug, sourceSlug } = req.params
