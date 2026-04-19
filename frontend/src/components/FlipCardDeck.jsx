@@ -8,12 +8,9 @@ import { useState, useEffect, useCallback } from 'react'
 //   Space key    — flip current card
 //   Dot nav      — jump to any card directly
 
-function FlipCardDeck({ artifact, projectSlug, sourceSlug }) {
+function FlipCardDeck({ artifact }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
-  // Cards whose image failed to load — keyed by index so only that card
-  // falls back to text-only, rather than hiding images across the deck.
-  const [imageFailed, setImageFailed] = useState({})
 
   const cards = artifact?.cards ?? []
   const total = cards.length
@@ -45,18 +42,7 @@ function FlipCardDeck({ artifact, projectSlug, sourceSlug }) {
   useEffect(() => {
     setCurrentIndex(0)
     setFlipped(false)
-    setImageFailed({})
   }, [artifact])
-
-  // Build the media URL for a card's source image. Returns null when the
-  // card has no visual reference, the props we'd need are missing, or
-  // the image previously failed to load (stale-cache / 404).
-  const mediaUrlFor = (c, idx) => {
-    if (!c?.visual_filename) return null
-    if (!projectSlug || !sourceSlug) return null
-    if (imageFailed[idx]) return null
-    return `/api/projects/${projectSlug}/sources/${sourceSlug}/media/${encodeURIComponent(c.visual_filename)}`
-  }
 
   if (!card) return <p style={{ color: '#6b6b6b' }}>No cards in this deck.</p>
 
@@ -95,7 +81,6 @@ function FlipCardDeck({ artifact, projectSlug, sourceSlug }) {
             <div className="flipcard-type-badge">
               {TYPE_LABEL[card.type] ?? card.type}
             </div>
-            <CardImage card={card} mediaUrl={mediaUrlFor(card, currentIndex)} onFail={() => setImageFailed(f => ({ ...f, [currentIndex]: true }))} />
             <div className="flipcard-text">{card.front}</div>
             <div className="flipcard-hint">Click to reveal →</div>
           </div>
@@ -105,7 +90,6 @@ function FlipCardDeck({ artifact, projectSlug, sourceSlug }) {
             <div className="flipcard-type-badge">
               {TYPE_LABEL[card.type] ?? card.type}
             </div>
-            <CardImage card={card} mediaUrl={mediaUrlFor(card, currentIndex)} onFail={() => setImageFailed(f => ({ ...f, [currentIndex]: true }))} />
             <div className="flipcard-text">{card.back}</div>
             <div className="flipcard-hint">← Click to flip back</div>
           </div>
@@ -151,44 +135,6 @@ function FlipCardDeck({ artifact, projectSlug, sourceSlug }) {
       <p className="flipcard-keyboard-hint">
         ← → arrow keys to navigate · Space to flip
       </p>
-
-      {/* Visual anchor suggestion from Claude */}
-      {artifact.visual_anchor_description && (
-        <div className="flipcard-visual-anchor">
-          <strong>Visual anchor: </strong>{artifact.visual_anchor_description}
-        </div>
-      )}
-
-      {/* Spaced repetition advice from Claude */}
-      {artifact.spaced_repetition_notes && (
-        <div className="flipcard-spaced-rep">
-          <strong>Spaced repetition tip: </strong>{artifact.spaced_repetition_notes}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Renders the source-image block on a card face when the card references
-// an image. Missing/null visual_filename → renders nothing (no empty slot).
-// Backend-annotated visual_source_position gives the caption ("Source:
-// slide 3"); when absent we fall back to the filename so old artifacts
-// still show something sensible.
-function CardImage({ card, mediaUrl, onFail }) {
-  if (!mediaUrl) return null
-  const caption = card.visual_source_position || card.visual_filename
-  return (
-    <div className="flipcard-image-wrap">
-      <img
-        src={mediaUrl}
-        alt=""
-        loading="lazy"
-        onError={() => {
-          console.warn('[flipcard] source image failed to load:', mediaUrl)
-          onFail()
-        }}
-      />
-      <div className="flipcard-image-caption">Source: {caption}</div>
     </div>
   )
 }

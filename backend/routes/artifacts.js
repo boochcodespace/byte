@@ -155,57 +155,9 @@ When source material references visuals (charts, diagrams, screenshots)
 that are not yet available to you, describe them precisely in the
 visual_anchor_description so the user knows what the source referenced.
 
-VISUAL CONSISTENCY WITH SOURCE
-
-When source content includes available images (you will receive a text
-list of them with nearby text context), reference those images by
-filename whenever a visual anchor would help the card. Prefer existing
-source images over describing invented visuals.
-
-Byte is a secondary content creation tool. Consistency with the source
-material is a feature. Using the actual diagrams, charts, and visuals
-the SME created is almost always better than inventing new descriptions.
-
-Rules for referencing source images:
-  - Only reference filenames from the provided list. Never invent a
-    filename that wasn't given to you.
-  - Use the nearbyText metadata to pick the most relevant image for
-    each card's content.
-  - If no source image fits a particular card, set that card's
-    visual_filename to null. Do not force a match.
-  - visual_anchor_description still captures the ideal visual for the
-    deck overall, independent of whether specific cards use specific
-    source images.
-
-When images are unavailable (manifest is empty), continue generating
-without source image references. visual_filename should be null for
-every card in that case.
-
 OUTPUT FORMAT
 Respond only in valid JSON matching the schema for the requested
 artifact type. No preamble, no markdown fences, no commentary.`
-
-// ─────────────────────────────────────────────────────────────────
-// Manifest → text formatter.
-//
-// Converts media/manifest.json's images array into the human-readable
-// block we show Claude. Keeps sourcePosition verbatim from the
-// extractors ("slide N" / "page N" / "after paragraph N") so the
-// rendering matches the source format without extra bookkeeping.
-// Empty manifest renders as "(none available)" so Claude has an
-// unambiguous "no images here" signal rather than a missing section.
-// ─────────────────────────────────────────────────────────────────
-function formatImageManifest(manifest) {
-  const images = Array.isArray(manifest?.images) ? manifest.images : []
-  if (images.length === 0) return '(none available)'
-  return images.map(img => {
-    const filename = img.filename || '(unknown)'
-    const position = img.sourcePosition || 'unknown position'
-    const nearby = (img.nearbyText || '').trim()
-    const nearbyFragment = nearby ? `, near text: "${nearby}"` : ''
-    return `- ${filename} (${position}${nearbyFragment})`
-  }).join('\n')
-}
 
 // ─────────────────────────────────────────────────────────────────
 // PROMPT BUILDER — Flip Card Deck
@@ -216,7 +168,7 @@ function formatImageManifest(manifest) {
 // not missing context, so it does not attempt to fill the gap by
 // inferring what the project guidelines might be.
 // ─────────────────────────────────────────────────────────────────
-function buildFlipCardPrompt(sourceContent, context, project, perGenerationPrompt, perGenerationObjective, imageManifestBlock) {
+function buildFlipCardPrompt(sourceContent, context, project, perGenerationPrompt, perGenerationObjective) {
   // Pick the objective block based on priority:
   //   per-generation override > source objectives > infer
   let objectivesBlock
@@ -257,9 +209,6 @@ ${objectivesBlock}
 ═══ SOURCE CONTENT (reference material) ═══
 ${sourceContent}
 
-═══ AVAILABLE SOURCE IMAGES ═══
-${imageManifestBlock}
-
 ═══ REQUIREMENTS ═══
 - Distill the source. Do not invent content beyond what the source supports.
 - If the source is thin, produce a tighter deck (4-6 cards) rather than
@@ -290,8 +239,7 @@ Respond in this JSON schema:
     {
       "type": "hook | content | apply",
       "front": "string",
-      "back": "string",
-      "visual_filename": "string | null — filename from AVAILABLE SOURCE IMAGES, or null when no source image fits"
+      "back": "string"
     }
   ],
   "spaced_repetition_notes": "string describing which cards would benefit from resurfacing as a different artifact type later, and flagging any gaps or ambiguities in the source material"
@@ -346,22 +294,12 @@ router.post('/generate', async (req, res) => {
     ? JSON.parse(fs.readFileSync(projectPath, 'utf-8'))
     : {}
 
-  // Image manifest from the extracted source media. Older sources (or
-  // pasted-text sources with no media step) may be missing this file
-  // entirely; an empty manifest is the safe fallback.
-  const manifestPath = path.join(sourceDir, 'media', 'manifest.json')
-  const manifest = fs.existsSync(manifestPath)
-    ? JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
-    : { images: [] }
-  const imageManifestBlock = formatImageManifest(manifest)
-
   const userPrompt = buildFlipCardPrompt(
     sourceContent,
     context,
     project,
     perGenerationPrompt,
-    perGenerationObjective,
-    imageManifestBlock
+    perGenerationObjective
   )
 
   const anthropic = new Anthropic({ apiKey })
@@ -395,31 +333,6 @@ router.post('/generate', async (req, res) => {
     return res.status(500).json({
       error: 'Claude returned a response that could not be parsed as JSON. Please try again.',
       raw: rawText.slice(0, 500)
-    })
-  }
-
-  // Validate any filenames Claude referenced. Claude occasionally
-  // hallucinates filenames even when given an explicit list; rather than
-  // letting the renderer 404 on a broken link, we null out unknown
-  // filenames and annotate valid ones with their sourcePosition so the
-  // frontend can display "Source: slide 3" without re-fetching the
-  // manifest.
-  const manifestByFilename = new Map(
-    (Array.isArray(manifest.images) ? manifest.images : [])
-      .map(img => [img.filename, img])
-  )
-  if (Array.isArray(artifact.cards)) {
-    artifact.cards.forEach((card, idx) => {
-      if (!card || !card.visual_filename) return
-      const entry = manifestByFilename.get(card.visual_filename)
-      if (!entry) {
-        console.warn(
-          `[generation] Claude referenced non-existent filename: ${card.visual_filename} for card ${idx}, setting to null`
-        )
-        card.visual_filename = null
-      } else {
-        card.visual_source_position = entry.sourcePosition
-      }
     })
   }
 
