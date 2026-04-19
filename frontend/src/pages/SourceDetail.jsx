@@ -4,25 +4,35 @@ import FlipCardDeck from '../components/FlipCardDeck'
 
 // SourceDetail: the full page for one source within a project.
 // Left column: editable source text + artifact list + artifact preview.
-// Right column (sidebar): learner context fields + generate button.
+// Right column (sidebar): learner context fields + generate controls.
 function SourceDetail() {
   const { projectSlug, slug } = useParams()
   const sourceUrl = `/api/projects/${projectSlug}/sources/${slug}`
 
   const [source, setSource] = useState(null)
   const [content, setContent] = useState('')
-  const [context, setContext] = useState({ role: '', experience: '', useCase: '' })
+  const [context, setContext] = useState({
+    role: '',
+    experience: '',
+    useCase: '',
+    learningObjectives: ''
+  })
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState(null)
 
   const [saving, setSaving] = useState(false)
   const [saveLabel, setSaveLabel] = useState('Save')
 
+  // Generation state
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState(null)
-
   const [artifactType, setArtifactType] = useState('flip-card-deck')
   const [selectedArtifact, setSelectedArtifact] = useState(null)
+
+  // Ephemeral per-generation fields — cleared after a successful generation
+  // so they don't silently carry over to the next one.
+  const [perGenerationPrompt, setPerGenerationPrompt] = useState('')
+  const [perGenerationObjective, setPerGenerationObjective] = useState('')
 
   // Load source on mount
   useEffect(() => {
@@ -32,7 +42,13 @@ function SourceDetail() {
         if (data.error) throw new Error(data.error)
         setSource(data)
         setContent(data.content || '')
-        setContext(data.context || { role: '', experience: '', useCase: '' })
+        // Older sources may not have learningObjectives — default to ''
+        setContext({
+          role: data.context?.role || '',
+          experience: data.context?.experience || '',
+          useCase: data.context?.useCase || '',
+          learningObjectives: data.context?.learningObjectives || ''
+        })
         if (data.artifacts?.length > 0) {
           setSelectedArtifact(data.artifacts[0])
         }
@@ -79,7 +95,11 @@ function SourceDetail() {
       const res = await fetch(`${sourceUrl}/artifacts/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artifactType })
+        body: JSON.stringify({
+          artifactType,
+          perGenerationPrompt,
+          perGenerationObjective
+        })
       })
       const data = await res.json()
 
@@ -91,6 +111,9 @@ function SourceDetail() {
           artifacts: [data, ...(prev.artifacts || [])]
         }))
         setSelectedArtifact(data)
+        // Ephemeral per-generation fields reset on success
+        setPerGenerationPrompt('')
+        setPerGenerationObjective('')
       }
     } catch {
       setGenError('Could not reach the backend. Make sure npm run dev is running.')
@@ -204,6 +227,23 @@ function SourceDetail() {
                 onChange={e => setContext(c => ({ ...c, useCase: e.target.value }))}
               />
             </div>
+
+            <div className="form-group">
+              <label>
+                Learning objectives <span className="label-optional">(optional)</span>
+              </label>
+              <p className="field-help">
+                What this source is designed to teach. Paste or type one or more
+                objectives. Byte will use these when generating. Leave blank to
+                let Byte infer objectives from the content.
+              </p>
+              <textarea
+                placeholder={'e.g. By the end, learners will be able to:\n1. Identify three demand signal types.\n2. Apply basic forecasting logic.'}
+                value={context.learningObjectives || ''}
+                onChange={e => setContext(c => ({ ...c, learningObjectives: e.target.value }))}
+                rows={5}
+              />
+            </div>
           </div>
 
           <div className="card generate-card">
@@ -217,6 +257,40 @@ function SourceDetail() {
               >
                 <option value="flip-card-deck">Flip Card Deck</option>
               </select>
+            </div>
+
+            <div className="form-group">
+              <label>
+                Per-generation prompt <span className="label-optional">(optional)</span>
+              </label>
+              <p className="field-help">
+                Steering for THIS generation only. Not saved. Use for one-off
+                adjustments like "focus on section 3" or "target a senior
+                planner who already knows basics."
+              </p>
+              <textarea
+                placeholder="e.g. Focus on the changeover time matrix section."
+                value={perGenerationPrompt}
+                onChange={e => setPerGenerationPrompt(e.target.value)}
+                rows={3}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>
+                Target learning objective <span className="label-optional">(optional override)</span>
+              </label>
+              <p className="field-help">
+                Lock THIS artifact to one specific objective. Overrides the
+                source's learning objectives. Use when generating a different
+                artifact from the same source for a different objective.
+              </p>
+              <textarea
+                placeholder="e.g. Apply forecasting logic to a real planning decision."
+                value={perGenerationObjective}
+                onChange={e => setPerGenerationObjective(e.target.value)}
+                rows={2}
+              />
             </div>
 
             <button
