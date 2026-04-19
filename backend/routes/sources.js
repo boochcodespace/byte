@@ -16,6 +16,8 @@ const slugify = require('slugify')
 const multer = require('multer')
 const artifactsRouter = require('./artifacts')
 const { parseDocx } = require('../lib/parsers/docx')
+const { parsePdf, probePdf } = require('../lib/parsers/pdf')
+const { UserFacingError } = require('../lib/parsers/errors')
 
 const PROJECTS_DIR = path.join(os.homedir(), 'Byte', 'projects')
 const ALLOWED_EXTENSIONS = ['.pdf', '.pptx', '.docx', '.md', '.txt']
@@ -113,6 +115,16 @@ function parsePlainText(buffer, title) {
   return `# ${title.trim()}\n\n${text}`
 }
 
+// preflightCheck: runs BEFORE any disk writes. Throws UserFacingError for
+// known, user-addressable conditions (e.g. password-protected PDFs) so the
+// route handler can return a friendly 400 with no side-effects. Most formats
+// have a no-op preflight.
+async function preflightCheck(buffer, ext) {
+  if (ext === '.pdf') {
+    await probePdf(buffer)
+  }
+}
+
 async function parseSourceFile(buffer, ext, title, originalName) {
   const emptyManifest = { images: [] }
   try {
@@ -123,8 +135,10 @@ async function parseSourceFile(buffer, ext, title, originalName) {
         return { markdown: parsePlainText(buffer, title), mediaFiles: [], manifest: emptyManifest }
       case '.docx':
         return await parseDocx(buffer, title, originalName)
+      case '.pdf':
+        return await parsePdf(buffer, title, originalName)
       default:
-        // .pdf / .pptx — real parsers land in Steps 5–6.
+        // .pptx — real parser lands in Step 6.
         return {
           markdown: placeholderMarkdown(title, originalName, ext),
           mediaFiles: [],
@@ -255,6 +269,18 @@ router.post('/upload', (req, res) => {
 
     const originalName = req.file.originalname
     const ext = path.extname(originalName).toLowerCase()
+
+    // Preflight: reject known user-addressable conditions (e.g. password-
+    // protected PDFs) BEFORE creating any files. Unknown preflight failures
+    // are swallowed — the real parser's fallback will handle those.
+    try {
+      await preflightCheck(req.file.buffer, ext)
+    } catch (preErr) {
+      if (preErr instanceof UserFacingError) {
+        return res.status(400).json({ error: preErr.message })
+      }
+      console.warn('[preflight] ignored:', preErr.message)
+    }
 
     try {
       const sourcesDir = path.join(PROJECTS_DIR, projectSlug, 'sources')
