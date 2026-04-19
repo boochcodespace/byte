@@ -171,7 +171,6 @@ function SourceDetail() {
                     <div className="artifact-item-icon">🃏</div>
                     <div>
                       <div className="artifact-item-type">Flip Card Deck</div>
-                      <div className="artifact-item-objective">{artifact.learning_objective}</div>
                     </div>
                   </div>
                 ))}
