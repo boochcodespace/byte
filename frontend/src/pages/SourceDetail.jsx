@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import FlipCardDeck from '../components/FlipCardDeck'
+import { getRenderer, DEFAULT_TYPE } from '../artifact-renderers/registry'
 
 // SourceDetail: the full page for one source within a project.
 // Left column: editable source text + artifact list + artifact preview.
@@ -178,11 +178,17 @@ function SourceDetail() {
             </div>
           )}
 
-          {selectedArtifact && (
-            <div className="card artifact-preview">
-              <FlipCardDeck artifact={selectedArtifact} />
-            </div>
-          )}
+          {selectedArtifact && (() => {
+            // Older artifacts have no `type` field — fall back to the
+            // default (flip-card-deck) so nothing on disk looks broken
+            // after the refactor.
+            const Renderer = getRenderer(selectedArtifact.type || DEFAULT_TYPE)
+            return (
+              <div className="card artifact-preview">
+                <Renderer artifact={selectedArtifact} />
+              </div>
+            )
+          })()}
         </div>
 
         <div className="source-sidebar">

@@ -9,6 +9,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "adm-zip": "^0.5.17",
+    "ajv": "^8.18.0",
     "cors": "^2.8.5",
     "express": "^4.18.3",
     "image-size": "^2.0.2",

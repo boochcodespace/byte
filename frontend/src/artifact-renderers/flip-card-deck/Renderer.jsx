@@ -1,14 +1,22 @@
 import { useState, useEffect, useCallback } from 'react'
+import './Renderer.css'
 
-// FlipCardDeck: interactive card-by-card renderer for a flip card artifact.
+// Flip Card Deck renderer.
 //
 // Interactions:
 //   Click card   — flip between front and back
 //   ← →  keys   — navigate previous / next card
 //   Space key    — flip current card
 //   Dot nav      — jump to any card directly
+//
+// Contract (shared by every artifact renderer):
+//   props.artifact — the parsed artifact.json for this type
+//
+// Unknown fields on `artifact` or `card` are ignored, which is how
+// backward compatibility works: older artifacts with dead fields
+// (e.g. visual_filename from the Step 7 experiment) render cleanly.
 
-function FlipCardDeck({ artifact }) {
+function Renderer({ artifact }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
 
@@ -139,4 +147,4 @@ function FlipCardDeck({ artifact }) {
   )
 }
 
-export default FlipCardDeck
+export default Renderer
