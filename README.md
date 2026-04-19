@@ -74,7 +74,7 @@ Your key is stored in `~/Byte/settings.json` on your local machine. It is **neve
 ## Using Byte End-to-End
 
 1. **Create a project** — on the Projects page, click **+ New project**. Give it a title, and optionally a description, target audience, and style guide. Project-level guidance is inherited by every artifact generated within the project.
-2. **Add a source** — open the project, click **+ Add source**, then either paste text or upload a file (PDF, PPTX, DOCX, MD, TXT — max 25 MB)
+2. **Add a source** — open the project, click **+ Add source**, then either paste text or upload a file (see **Supported source formats** below — max 25 MB)
 3. **Open the source** — click on its card in the project's source grid
 4. **Set learner context** — in the right sidebar, fill in the learner's role, experience level, use case, and (optionally) the source's learning objectives
 5. **Generate an artifact** — click **✨ Generate** with "Flip Card Deck" selected. Optionally add a per-generation prompt or lock a target learning objective before clicking.
@@ -89,6 +89,24 @@ Byte treats your source as primary reference material and faithfully distills it
 - **Per-Generation Prompt** (per-artifact, ephemeral) — one-off steering for a single artifact. Not saved.
 
 You can also provide learning objectives at the source level (a free-form list the source is designed to support) or lock a single target objective for one artifact via the per-generation override. When objectives are provided, Byte treats them as authoritative and does not substitute its own.
+
+## Supported Source Formats
+
+Byte extracts text and embedded images from uploaded files into a canonical shape (`source.md` + `media/manifest.json`) that generation can read. All parsing happens locally.
+
+| Format | Text | Embedded images | Notes |
+|---|---|---|---|
+| `.md`   | pass-through | — | File content lands verbatim in `source.md`. |
+| `.txt`  | wrapped under title | — | Plain text is treated as body content under your entered title. |
+| `.docx` | Markdown-flavoured | yes | Tables and headings preserved. Linked (not embedded) images are skipped. Tracked changes are resolved to the accepted text. |
+| `.pdf`  | per-page with `[page N]` markers | yes (raster only) | Line breaks inferred from text positioning. Vector graphics and form XObjects are skipped. Password-protected PDFs are rejected at upload. Scanned PDFs get a clear marker — OCR is not supported. |
+| `.pptx` | per-slide with title, body, and speaker notes | yes | Hidden slides are included and flagged. Slide layouts and masters are not extracted (template text only). SmartArt and charts are skipped. |
+
+### Visual awareness (Level 1)
+
+When a source has embedded images, each one is catalogued in `media/manifest.json` with rich metadata: sequential filename, source format, position context (`"after paragraph N"`, `"page N"`, `"slide N"`), up to ~200 chars of nearby text, pixel dimensions, and extraction timestamp.
+
+Today, generation uses these manifests **as text context only** — Claude sees image filenames and their nearbyText and references them by name in artifact output. Claude does not yet see the image pixels themselves. That upgrade (Level 3 — vision via Claude's multimodal capability) is a later phase.
 
 ## Where Your Data Lives
 
@@ -106,7 +124,8 @@ All user content is stored in `~/Byte/` on your machine (your home folder, outsi
                 ├── source-original.<ext>          ← original uploaded file (upload flow only)
                 ├── context.json                   ← learner context (role, experience, use case)
                 ├── media/
-                │   └── manifest.json              ← extracted images manifest
+                │   ├── manifest.json              ← extracted images manifest
+                │   └── image-001.png, ...         ← extracted embedded images
                 └── artifacts/
                     └── flip-cards-<timestamp>/
                         └── artifact.json          ← generated artifact data
