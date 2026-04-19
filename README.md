@@ -73,12 +73,22 @@ Your key is stored in `~/Byte/settings.json` on your local machine. It is **neve
 
 ## Using Byte End-to-End
 
-1. **Create a project** — on the Projects page, click **+ New project**. Give it a title, and optionally a description, target audience, and style guide. Style guide and target audience are inherited by every artifact you generate within the project.
+1. **Create a project** — on the Projects page, click **+ New project**. Give it a title, and optionally a description, target audience, and style guide. Project-level guidance is inherited by every artifact generated within the project.
 2. **Add a source** — open the project, click **+ Add source**, then either paste text or upload a file (PDF, PPTX, DOCX, MD, TXT — max 25 MB)
 3. **Open the source** — click on its card in the project's source grid
-4. **Set learner context** — in the right sidebar, fill in the learner's role, experience level, and use case. Combined with the project's style guide and audience, this is what tailors each artifact.
-5. **Generate an artifact** — click **✨ Generate** with "Flip Card Deck" selected
+4. **Set learner context** — in the right sidebar, fill in the learner's role, experience level, use case, and (optionally) the source's learning objectives
+5. **Generate an artifact** — click **✨ Generate** with "Flip Card Deck" selected. Optionally add a per-generation prompt or lock a target learning objective before clicking.
 6. **Interact with the cards** — click any card to flip it, use **← →** arrow keys to navigate, **Space** to flip
+
+### How Byte steers output
+
+Byte treats your source as primary reference material and faithfully distills it into artifacts. You steer the output through three distinct layers, each with a different job:
+
+- **Style Guide** (project-level) — *how* to write. Voice, tone, writing conventions, words or patterns to avoid.
+- **Custom Instructions** (project-level) — *what to focus on*. Content emphasis, pedagogical angle, framing that every artifact in the project should reflect.
+- **Per-Generation Prompt** (per-artifact, ephemeral) — one-off steering for a single artifact. Not saved.
+
+You can also provide learning objectives at the source level (a free-form list the source is designed to support) or lock a single target objective for one artifact via the per-generation override. When objectives are provided, Byte treats them as authoritative and does not substitute its own.
 
 ## Where Your Data Lives
 

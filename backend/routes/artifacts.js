@@ -18,13 +18,73 @@ const SETTINGS_FILE = path.join(os.homedir(), 'Byte', 'settings.json')
 
 // ─────────────────────────────────────────────────────────────────
 // SYSTEM PROMPT
+// Fixed for every Claude API call. Encodes Byte's secondary-content
+// identity, the 2026 Modern Learning Design Principles, and the
+// priority order between steering layers.
 // ─────────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are the generative engine inside Byte, a tool for instructional
 designers that creates bite-sized tapas-style learning artifacts from
 source content.
 
-Every artifact you generate must follow these 2026 Modern Learning
-Design Principles. These are non-negotiable rules.
+CORE IDENTITY: SECONDARY CONTENT CREATOR
+
+Byte does not create learning content from scratch. Byte creates
+SECONDARY content from primary source material that an SME, designer,
+or subject expert has already produced. Your job is to faithfully
+distill, reframe, and transform that source material into bite-sized
+learning artifacts. You are not an author of new ideas; you are a
+skilled instructional translator who preserves the source's substance
+while reshaping it for learner-friendly consumption.
+
+This framing is fundamental. When source material is thin, do not fill
+the gap with invented content. Instead, generate fewer, denser artifacts
+that stay grounded in what the source actually contains. A tight
+four-card flip deck grounded in the source beats a bloated ten-card
+deck padded with generic content.
+
+When source material conflicts with standard instructional practice,
+favor the source's framing unless explicitly told otherwise. The source
+reflects the SME's expertise. Byte's job is to make that expertise
+accessible, not to override it.
+
+STEERING LAYERS
+
+Every generation receives three layers of steering in addition to the
+source content and learner context:
+
+  1. PROJECT STYLE GUIDE — how to write (voice, tone, writing rules)
+  2. PROJECT CUSTOM INSTRUCTIONS — what to focus on (content emphasis,
+     pedagogical angle, framing)
+  3. PER-GENERATION PROMPT — one-off adjustments for this artifact only
+
+Apply all three. If they conflict, prioritize in this order:
+Per-Generation Prompt > Custom Instructions > Style Guide > 2026
+Principles > your defaults.
+
+LEARNING OBJECTIVES
+
+You may receive learning objectives at two levels of specificity:
+
+  1. A TARGET LEARNING OBJECTIVE for this specific artifact (locked).
+     If provided, your artifact MUST address this objective exactly.
+     Do not substitute a different objective. State it verbatim as
+     the artifact's learning_objective in the response.
+
+  2. SOURCE LEARNING OBJECTIVES — multiple objectives the source is
+     designed to support. If provided, pick ONE that best fits the
+     artifact type and the per-generation steering, and state the one
+     you chose as the artifact's learning_objective.
+
+  3. NONE PROVIDED. Infer a single tight objective from the source.
+
+When objectives are provided, treat them as authoritative. A provided
+objective overrides anything you might otherwise infer. This reflects
+how professional instructional designers actually work: objectives come
+first, content serves objectives.
+
+2026 MODERN LEARNING DESIGN PRINCIPLES
+
+Every artifact must follow these. Non-negotiable.
 
 CORE PHILOSOPHY
 Each artifact is a standalone, high-impact learning moment. One learning
@@ -52,11 +112,9 @@ Tailor every artifact to that specific context. Use their language, their
 daily friction points, and their real scenarios.
 
 PROJECT STYLE GUIDE AND AUDIENCE
-Each source belongs to a project. The project may define a house style guide
-and a target audience. When present, these take precedence over generic
-defaults: match the tone, terminology, and complexity level specified. If
-they conflict with learner context, prefer specificity — address both where
-possible.
+Every artifact is generated within a project. The project's style guide
+governs voice; the target audience description sets the lens. Apply both
+consistently. Style guide rules override your defaults.
 
 GAMIFICATION WHERE APPLICABLE
 When the artifact type supports it, include a gamification mechanic:
@@ -78,41 +136,99 @@ different artifact types over time. Note when a specific card, question,
 or scenario would benefit from being resurfaced as a different artifact
 type later.
 
+=== LEARNING STYLES AWARENESS ===
+[Reserved for insights from 2026 Learning Styles research.
+ Populate in a future phase. Do not fill in now.]
+=================================
+
+SOURCE FIDELITY RULES
+
+When source material includes specific frameworks, terminology, diagrams,
+or mental models, USE them. Do not invent parallel frameworks. If the
+source says "the three pillars of X," your artifact references those
+three pillars, not a different set.
+
+When source material is ambiguous or contradictory, flag it in the
+artifact's spaced_repetition_notes rather than resolving it silently.
+
+When source material references visuals (charts, diagrams, screenshots)
+that are not yet available to you, describe them precisely in the
+visual_anchor_description so the user knows what the source referenced.
+
 OUTPUT FORMAT
 Respond only in valid JSON matching the schema for the requested
 artifact type. No preamble, no markdown fences, no commentary.`
 
 // ─────────────────────────────────────────────────────────────────
 // PROMPT BUILDER — Flip Card Deck
+//
+// The user message always renders every section header — even when
+// the value is "(none provided)". This is a deliberate design choice:
+// an empty section signals to Claude that the absence is intentional,
+// not missing context, so it does not attempt to fill the gap by
+// inferring what the project guidelines might be.
 // ─────────────────────────────────────────────────────────────────
-function buildFlipCardPrompt(sourceContent, context, project) {
-  return `Generate a flip card deck from the following source content.
+function buildFlipCardPrompt(sourceContent, context, project, perGenerationPrompt, perGenerationObjective) {
+  // Pick the objective block based on priority:
+  //   per-generation override > source objectives > infer
+  let objectivesBlock
+  if (perGenerationObjective && perGenerationObjective.trim()) {
+    objectivesBlock = `TARGET LEARNING OBJECTIVE (locked for this artifact — use verbatim as learning_objective):
+${perGenerationObjective.trim()}`
+  } else if (context.learningObjectives && context.learningObjectives.trim()) {
+    objectivesBlock = `SOURCE LEARNING OBJECTIVES (pick the most relevant one for this artifact and state which you chose):
+${context.learningObjectives.trim()}`
+  } else {
+    objectivesBlock = `(none provided — infer a single tight objective from the source)`
+  }
 
-PROJECT STYLE GUIDE:
-${project.styleGuide || 'None specified.'}
+  return `Generate a flip card deck from the following source content. This is \
+SECONDARY content creation: treat the source as reference material to \
+faithfully distill, not as inspiration for invention.
 
-PROJECT TARGET AUDIENCE:
-${project.targetAudience || 'None specified.'}
+═══ PROJECT STYLE GUIDE ═══
+${project.styleGuide?.trim() || '(none provided)'}
 
-LEARNER CONTEXT:
-- Role: ${context.role || 'Not specified'}
-- Experience level: ${context.experience || 'Not specified'}
-- Use case: ${context.useCase || 'Not specified'}
+═══ PROJECT TARGET AUDIENCE ═══
+${project.targetAudience?.trim() || '(none provided)'}
 
-SOURCE CONTENT:
+═══ PROJECT CUSTOM INSTRUCTIONS ═══
+${project.customInstructions?.trim() || '(none provided)'}
+
+═══ PER-GENERATION PROMPT ═══
+${perGenerationPrompt?.trim() || '(none provided)'}
+
+═══ LEARNER CONTEXT ═══
+Role: ${context.role || 'not specified'}
+Experience level: ${context.experience || 'not specified'}
+Use case: ${context.useCase || 'not specified'}
+
+═══ LEARNING OBJECTIVES ═══
+${objectivesBlock}
+
+═══ SOURCE CONTENT (reference material) ═══
 ${sourceContent}
 
-REQUIREMENTS:
-- 6 to 10 cards total
-- One learning objective for the full deck (state it at the top)
-- Open with a hook card: a decision, stat, or challenge that pulls
-  the learner in before they know the answer
-- Each card: front is a question, key term, or decision point;
-  back is the answer or insight, stripped to its core
-- Final card is an "Apply today" card: one specific action the
-  learner can take right now
-- Suggest one visual anchor for the deck (description only)
-- Estimate completion time in minutes
+═══ REQUIREMENTS ═══
+- Distill the source. Do not invent content beyond what the source supports.
+- If the source is thin, produce a tighter deck (4-6 cards) rather than
+  padding with generic content to hit a target count.
+- If the source is rich, produce a fuller deck (6-10 cards).
+- One learning objective for the full deck. State it at the top.
+- Open with a hook card: a decision, stat, or challenge grounded in the
+  source material that pulls the learner in before they know the answer.
+- Each content card: front is a question, key term, or decision point
+  drawn from the source; back is the answer or insight, stripped to its
+  core, in the project's voice.
+- Final card is an "Apply today" card: one specific action the learner
+  can take right now, grounded in the source's actual content.
+- Use the source's own frameworks, terminology, and examples. Do not
+  substitute your own.
+- Suggest one visual anchor for the deck, describing it precisely enough
+  that it could be sketched.
+- Estimate completion time in minutes.
+- If the source is too thin to support the full requirements, produce
+  your best distillation and note the gap in spaced_repetition_notes.
 
 Respond in this JSON schema:
 {
@@ -126,7 +242,7 @@ Respond in this JSON schema:
       "back": "string"
     }
   ],
-  "spaced_repetition_notes": "string describing which cards would benefit from resurfacing as a different artifact type later"
+  "spaced_repetition_notes": "string describing which cards would benefit from resurfacing as a different artifact type later, and flagging any gaps or ambiguities in the source material"
 }`
 }
 
@@ -135,7 +251,7 @@ Respond in this JSON schema:
 // ─────────────────────────────────────────────────────────────────
 router.post('/generate', async (req, res) => {
   const { projectSlug, sourceSlug } = req.params
-  const { artifactType } = req.body
+  const { artifactType, perGenerationPrompt, perGenerationObjective } = req.body
 
   if (!artifactType) {
     return res.status(400).json({ error: 'artifactType is required' })
@@ -166,17 +282,25 @@ router.post('/generate', async (req, res) => {
   const mdPath = path.join(sourceDir, 'source.md')
   const sourceContent = fs.existsSync(mdPath) ? fs.readFileSync(mdPath, 'utf-8') : ''
 
+  // Older sources may lack learningObjectives — read tolerates missing keys.
   const ctxPath = path.join(sourceDir, 'context.json')
   const context = fs.existsSync(ctxPath)
     ? JSON.parse(fs.readFileSync(ctxPath, 'utf-8'))
     : {}
 
+  // Older projects may lack customInstructions — read tolerates missing keys.
   const projectPath = path.join(PROJECTS_DIR, projectSlug, 'project.json')
   const project = fs.existsSync(projectPath)
     ? JSON.parse(fs.readFileSync(projectPath, 'utf-8'))
     : {}
 
-  const userPrompt = buildFlipCardPrompt(sourceContent, context, project)
+  const userPrompt = buildFlipCardPrompt(
+    sourceContent,
+    context,
+    project,
+    perGenerationPrompt,
+    perGenerationObjective
+  )
 
   const anthropic = new Anthropic({ apiKey })
 

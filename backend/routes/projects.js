@@ -98,6 +98,7 @@ function seedExampleIfEmpty() {
       description: 'Example project — explore Byte\'s features here.',
       styleGuide: '',
       targetAudience: 'Workplace professionals learning new skills',
+      customInstructions: '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }, null, 2)
@@ -188,7 +189,7 @@ router.get('/:projectSlug', (req, res) => {
 
 // POST /api/projects — create a new project
 router.post('/', (req, res) => {
-  const { title, description, styleGuide, targetAudience } = req.body
+  const { title, description, styleGuide, targetAudience, customInstructions } = req.body
   if (!title || !title.trim()) return res.status(400).json({ error: 'title is required' })
 
   ensureProjectsDir()
@@ -203,6 +204,7 @@ router.post('/', (req, res) => {
     description: description || '',
     styleGuide: styleGuide || '',
     targetAudience: targetAudience || '',
+    customInstructions: customInstructions || '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
@@ -218,7 +220,7 @@ router.put('/:projectSlug', (req, res) => {
   if (!fs.existsSync(projectPath)) return res.status(404).json({ error: 'Project not found' })
 
   const existing = JSON.parse(fs.readFileSync(projectPath, 'utf-8'))
-  const { title, description, styleGuide, targetAudience } = req.body
+  const { title, description, styleGuide, targetAudience, customInstructions } = req.body
 
   const updated = {
     ...existing,
@@ -226,6 +228,7 @@ router.put('/:projectSlug', (req, res) => {
     description: description !== undefined ? description : existing.description,
     styleGuide: styleGuide !== undefined ? styleGuide : existing.styleGuide,
     targetAudience: targetAudience !== undefined ? targetAudience : existing.targetAudience,
+    customInstructions: customInstructions !== undefined ? customInstructions : (existing.customInstructions || ''),
     updatedAt: new Date().toISOString()
   }
   fs.writeFileSync(projectPath, JSON.stringify(updated, null, 2))
