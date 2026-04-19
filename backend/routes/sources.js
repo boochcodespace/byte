@@ -1,16 +1,47 @@
 // routes/sources.js — CRUD for source documents in ~/Byte/sources/
 // Each source lives in its own subfolder named by slug:
-//   ~/Byte/sources/<slug>/source.md   — the raw source text
-//   ~/Byte/sources/<slug>/context.json — learner context fields
+//   ~/Byte/sources/<slug>/source.md          — extracted/pasted text
+//   ~/Byte/sources/<slug>/source-original.*  — original uploaded file (upload flow only)
+//   ~/Byte/sources/<slug>/context.json       — learner context fields
+//   ~/Byte/sources/<slug>/media/             — extracted images + manifest.json
 
 const express = require('express')
 const router = express.Router()
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
-const slugify = require('slugify')   // converts "My Notes" → "my-notes"
+const slugify = require('slugify')
+const multer = require('multer')
 
 const SOURCES_DIR = path.join(os.homedir(), 'Byte', 'sources')
+
+// ─── Multer configuration ────────────────────────────────────────────────────
+// multer is the standard Express middleware for multipart/form-data — the
+// encoding browsers use when sending files over HTTP.
+//
+// memoryStorage keeps the uploaded file as a Buffer in req.file.buffer.
+// We write it to disk ourselves once we've built the target slug path,
+// giving us full control over the destination filename.
+const ALLOWED_EXTENSIONS = ['.pdf', '.pptx', '.docx', '.md', '.txt']
+const MAX_FILE_BYTES = 25 * 1024 * 1024   // 25 MB
+
+const uploadMiddleware = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_FILE_BYTES },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase()
+    if (ALLOWED_EXTENSIONS.includes(ext)) {
+      cb(null, true)
+    } else {
+      // Passing an Error to cb rejects the upload before the route body runs
+      cb(new Error(
+        `"${ext}" files are not supported. Accepted: ${ALLOWED_EXTENSIONS.join(', ')}`
+      ))
+    }
+  }
+}).single('file')   // 'file' must match the FormData field name from the frontend
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function ensureSourcesDir() {
   if (!fs.existsSync(SOURCES_DIR)) {
@@ -18,14 +49,14 @@ function ensureSourcesDir() {
   }
 }
 
-// Read context.json for a source; returns empty object if missing
+// Read context.json for a source; returns {} if missing
 function readContext(sourceDir) {
   const ctxPath = path.join(sourceDir, 'context.json')
   if (!fs.existsSync(ctxPath)) return {}
   return JSON.parse(fs.readFileSync(ctxPath, 'utf-8'))
 }
 
-// Count how many artifact subfolders exist for a source
+// Count artifact subfolders for a source
 function countArtifacts(sourceDir) {
   const artifactsDir = path.join(sourceDir, 'artifacts')
   if (!fs.existsSync(artifactsDir)) return 0
@@ -34,22 +65,41 @@ function countArtifacts(sourceDir) {
     .length
 }
 
-// Extract the title from source.md: use the first Markdown heading or first line
+// Extract title from source.md: first Markdown heading or first non-empty line
 function extractTitle(content) {
   const firstLine = content.split('\n').find(l => l.trim()) || 'Untitled'
   return firstLine.replace(/^#+\s*/, '').trim()
 }
 
-// On the very first run, seed one example source so there is
-// something to click on before the user has added their own content.
+// Build a unique slug; appends timestamp if the folder already exists
+function makeSlug(title) {
+  let slug = slugify(title.trim(), { lower: true, strict: true })
+  if (!slug) slug = 'source'
+  if (fs.existsSync(path.join(SOURCES_DIR, slug))) {
+    slug = `${slug}-${Date.now()}`
+  }
+  return slug
+}
+
+// Build the standard source summary returned by list + create endpoints
+function buildSourceSummary(slug, sourceDir) {
+  const mdPath = path.join(sourceDir, 'source.md')
+  const content = fs.existsSync(mdPath) ? fs.readFileSync(mdPath, 'utf-8') : ''
+  const title = extractTitle(content)
+  const plainText = content.replace(/^#+\s*/gm, '').replace(/\*\*/g, '').trim()
+  const preview = plainText.slice(0, 150) + (plainText.length > 150 ? '...' : '')
+  return { slug, title, preview, artifactCount: countArtifacts(sourceDir), context: readContext(sourceDir) }
+}
+
+// ─── Seeded example ──────────────────────────────────────────────────────────
+
 function seedExampleIfEmpty() {
   ensureSourcesDir()
-  const entries = fs.readdirSync(SOURCES_DIR)
-  if (entries.length > 0) return   // already has sources
+  if (fs.readdirSync(SOURCES_DIR).length > 0) return
 
   const slug = 'example-active-listening'
   const dir = path.join(SOURCES_DIR, slug)
-  fs.mkdirSync(dir, { recursive: true })
+  fs.mkdirSync(path.join(dir, 'media'), { recursive: true })
 
   const content = `# Active Listening in the Workplace
 
@@ -92,38 +142,22 @@ In your next one-on-one or meeting, set a goal: ask three clarifying questions b
 
   fs.writeFileSync(path.join(dir, 'source.md'), content)
   fs.writeFileSync(path.join(dir, 'context.json'), JSON.stringify({
-    role: 'Team Lead',
-    experience: 'Intermediate',
-    useCase: 'Improve team communication during 1:1s'
+    role: 'Team Lead', experience: 'Intermediate', useCase: 'Improve team communication during 1:1s'
   }, null, 2))
+  fs.writeFileSync(path.join(dir, 'media', 'manifest.json'), JSON.stringify({ images: [] }, null, 2))
 }
 
-// GET /api/sources — list all sources (summary, no full content)
+// ─── Routes ──────────────────────────────────────────────────────────────────
+
+// GET /api/sources — list all sources (summaries, no full content)
 router.get('/', (req, res) => {
   ensureSourcesDir()
   seedExampleIfEmpty()
 
   const sources = fs.readdirSync(SOURCES_DIR)
     .filter(slug => fs.statSync(path.join(SOURCES_DIR, slug)).isDirectory())
-    .map(slug => {
-      const sourceDir = path.join(SOURCES_DIR, slug)
-      const mdPath = path.join(sourceDir, 'source.md')
-      const content = fs.existsSync(mdPath) ? fs.readFileSync(mdPath, 'utf-8') : ''
-      const title = extractTitle(content)
-
-      // Strip markdown symbols for a clean text preview
-      const plainText = content.replace(/^#+\s*/gm, '').replace(/\*\*/g, '')
-      const preview = plainText.slice(0, 150).trim() + (plainText.length > 150 ? '...' : '')
-
-      return {
-        slug,
-        title,
-        preview,
-        artifactCount: countArtifacts(sourceDir),
-        context: readContext(sourceDir)
-      }
-    })
-    .reverse()   // newest folders last in readdir, so reverse gives newest first
+    .map(slug => buildSourceSummary(slug, path.join(SOURCES_DIR, slug)))
+    .reverse()
 
   res.json(sources)
 })
@@ -137,10 +171,7 @@ router.get('/:slug', (req, res) => {
 
   const mdPath = path.join(sourceDir, 'source.md')
   const content = fs.existsSync(mdPath) ? fs.readFileSync(mdPath, 'utf-8') : ''
-  const title = extractTitle(content)
-  const context = readContext(sourceDir)
 
-  // Load artifact list: one entry per subfolder in /artifacts/
   const artifactsDir = path.join(sourceDir, 'artifacts')
   let artifacts = []
   if (fs.existsSync(artifactsDir)) {
@@ -152,46 +183,117 @@ router.get('/:slug', (req, res) => {
         return { folder, ...JSON.parse(fs.readFileSync(artifactFile, 'utf-8')) }
       })
       .filter(Boolean)
-      .reverse()   // newest first
+      .reverse()
   }
 
-  res.json({ slug: req.params.slug, title, content, context, artifacts })
+  res.json({
+    slug: req.params.slug,
+    title: extractTitle(content),
+    content,
+    context: readContext(sourceDir),
+    artifacts
+  })
 })
 
-// POST /api/sources — create a new source
+// POST /api/sources — create a source from pasted text
 router.post('/', (req, res) => {
   const { title, content } = req.body
   if (!title || !content) {
     return res.status(400).json({ error: 'title and content are required' })
   }
 
-  // slugify: "My First Source" → "my-first-source"
-  let slug = slugify(title, { lower: true, strict: true })
-
-  // Append timestamp if a folder with this slug already exists
+  ensureSourcesDir()
+  const slug = makeSlug(title)
   const sourceDir = path.join(SOURCES_DIR, slug)
-  if (fs.existsSync(sourceDir)) {
-    slug = `${slug}-${Date.now()}`
-  }
 
-  const finalDir = path.join(SOURCES_DIR, slug)
-  fs.mkdirSync(finalDir, { recursive: true })
-  fs.writeFileSync(path.join(finalDir, 'source.md'), content)
-  fs.writeFileSync(path.join(finalDir, 'context.json'), JSON.stringify(
+  // Create folder + media subfolder (consistent with upload-created sources)
+  fs.mkdirSync(path.join(sourceDir, 'media'), { recursive: true })
+  fs.writeFileSync(path.join(sourceDir, 'source.md'), content)
+  fs.writeFileSync(path.join(sourceDir, 'context.json'), JSON.stringify(
     { role: '', experience: '', useCase: '' }, null, 2
   ))
+  fs.writeFileSync(path.join(sourceDir, 'media', 'manifest.json'), JSON.stringify(
+    { images: [] }, null, 2
+  ))
 
-  const plainText = content.replace(/^#+\s*/gm, '').replace(/\*\*/g, '')
-  res.json({
-    slug,
-    title,
-    preview: plainText.slice(0, 150).trim() + (plainText.length > 150 ? '...' : ''),
-    artifactCount: 0,
-    context: { role: '', experience: '', useCase: '' }
+  res.json(buildSourceSummary(slug, sourceDir))
+})
+
+// POST /api/sources/upload — accept a file upload (multipart/form-data)
+//
+// multipart/form-data is the HTTP encoding for file uploads. The browser
+// sends the file as a binary stream alongside text fields. multer parses
+// this and puts the file in req.file (buffer, originalname, size, mimetype)
+// and text fields in req.body.
+//
+// This route only saves the raw file. Parsing (text + image extraction)
+// is added incrementally in Steps 3–6 of Phase 2A.
+router.post('/upload', (req, res) => {
+  uploadMiddleware(req, res, async (err) => {
+    // multer errors: LIMIT_FILE_SIZE (too large) or fileFilter rejection
+    if (err) {
+      const message = err.code === 'LIMIT_FILE_SIZE'
+        ? `File exceeds the 25 MB limit.`
+        : err.message
+      return res.status(400).json({ error: message })
+    }
+
+    const { title } = req.body
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'title is required' })
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file was included in the upload.' })
+    }
+
+    const originalName = req.file.originalname
+    const ext = path.extname(originalName).toLowerCase()
+
+    try {
+      ensureSourcesDir()
+      const slug = makeSlug(title)
+      const sourceDir = path.join(SOURCES_DIR, slug)
+
+      // Create directory structure including media/ subfolder
+      fs.mkdirSync(path.join(sourceDir, 'media'), { recursive: true })
+
+      // ── Save the original file exactly as uploaded ──────────────────────
+      // Naming convention: source-original.<ext>
+      // This preserves the raw source material alongside the extracted text.
+      fs.writeFileSync(path.join(sourceDir, `source-original${ext}`), req.file.buffer)
+
+      // ── Write placeholder source.md ────────────────────────────────────
+      // The # heading ensures extractTitle() returns the user-provided title.
+      // Steps 3–6 will replace the placeholder body with real extracted content.
+      const placeholder = [
+        `# ${title.trim()}`,
+        '',
+        `[Source uploaded: ${originalName}]`,
+        `[Parsing for ${ext} files will be added in an upcoming step.]`,
+        `[Open this source to generate artifacts once parsing is available.]`,
+      ].join('\n')
+      fs.writeFileSync(path.join(sourceDir, 'source.md'), placeholder)
+
+      // ── Write empty learner context and media manifest ──────────────────
+      fs.writeFileSync(path.join(sourceDir, 'context.json'), JSON.stringify(
+        { role: '', experience: '', useCase: '' }, null, 2
+      ))
+      fs.writeFileSync(path.join(sourceDir, 'media', 'manifest.json'), JSON.stringify(
+        { images: [] }, null, 2
+      ))
+
+      console.log(`[upload] ${originalName} (${(req.file.size / 1024).toFixed(1)} KB) → ${slug}`)
+
+      res.json(buildSourceSummary(slug, sourceDir))
+
+    } catch (writeErr) {
+      console.error('[upload] Failed to save source:', writeErr)
+      res.status(500).json({ error: `Failed to save uploaded source: ${writeErr.message}` })
+    }
   })
 })
 
-// PUT /api/sources/:slug — update content and/or context for a source
+// PUT /api/sources/:slug — update content and/or context
 router.put('/:slug', (req, res) => {
   const sourceDir = path.join(SOURCES_DIR, req.params.slug)
   if (!fs.existsSync(sourceDir)) {
