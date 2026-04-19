@@ -57,9 +57,8 @@ function FlipCardDeck({ artifact }) {
     // tabIndex={0} makes this div focusable so keyboard events fire on it
     <div className="flipcard-deck" onKeyDown={handleKeyDown} tabIndex={0}>
 
-      {/* Deck header: learning objective + counter */}
+      {/* Deck header: counter + estimated time */}
       <div className="flipcard-deck-meta">
-        <div className="flipcard-objective">{artifact.learning_objective}</div>
         <div className="flipcard-deck-info">
           <span className="flipcard-counter">{currentIndex + 1} / {total}</span>
           <span className="flipcard-time">~{artifact.estimated_minutes} min</span>
