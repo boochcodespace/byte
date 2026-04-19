@@ -71,6 +71,79 @@ function makeSlug(title, sourcesDir) {
   return slug
 }
 
+// ─── Parsing ─────────────────────────────────────────────────────────────────
+//
+// parseSourceFile turns an uploaded buffer into the canonical shape we store:
+//   - markdown:   the text that lands in source.md
+//   - mediaFiles: [{ filename, buffer }] to drop into media/ (empty for now)
+//   - manifest:   { images: [...] } that lands in media/manifest.json
+//
+// Step 3 handles .md and .txt. Steps 4–6 extend the switch for .docx / .pdf
+// / .pptx. The placeholderBranch() fallback keeps unsupported extensions
+// working the same way they did before parsing was added — the source is
+// created, the original file is preserved, and the UI shows a clear notice.
+
+function stripBom(str) {
+  return str.charCodeAt(0) === 0xFEFF ? str.slice(1) : str
+}
+
+function placeholderMarkdown(title, originalName, ext) {
+  return [
+    `# ${title.trim()}`,
+    '',
+    `[Source uploaded: ${originalName}]`,
+    `[Parsing for ${ext} files will be added in an upcoming step.]`,
+    `[Open this source to generate artifacts once parsing is available.]`,
+  ].join('\n')
+}
+
+function parseMarkdown(buffer, title) {
+  const text = stripBom(buffer.toString('utf-8'))
+  // If the file already starts with a heading, trust it. Otherwise prepend
+  // the user-entered title so extractTitle() and the UI have something real.
+  const hasHeading = /^\s*#\s+\S/.test(text)
+  return hasHeading ? text : `# ${title.trim()}\n\n${text}`
+}
+
+function parsePlainText(buffer, title) {
+  const text = stripBom(buffer.toString('utf-8'))
+  return `# ${title.trim()}\n\n${text}`
+}
+
+function parseSourceFile(buffer, ext, title, originalName) {
+  const emptyManifest = { images: [] }
+  try {
+    switch (ext) {
+      case '.md':
+        return { markdown: parseMarkdown(buffer, title), mediaFiles: [], manifest: emptyManifest }
+      case '.txt':
+        return { markdown: parsePlainText(buffer, title), mediaFiles: [], manifest: emptyManifest }
+      default:
+        // .pdf / .pptx / .docx — real parsers land in Steps 4–6.
+        return {
+          markdown: placeholderMarkdown(title, originalName, ext),
+          mediaFiles: [],
+          manifest: emptyManifest
+        }
+    }
+  } catch (err) {
+    // Parser blew up — never fail the upload. Write a clear marker so the
+    // user sees what happened and can edit the source by hand if they want.
+    console.error(`[parse] ${ext} parser failed for "${originalName}":`, err)
+    return {
+      markdown: [
+        `# ${title.trim()}`,
+        '',
+        `[Could not parse ${originalName}: ${err.message}]`,
+        `[The original file is preserved in this source's folder. You can`,
+        ` paste content manually into this editor.]`,
+      ].join('\n'),
+      mediaFiles: [],
+      manifest: emptyManifest
+    }
+  }
+}
+
 function buildSourceSummary(projectSlug, sourceSlug) {
   const sourceDir = getSourceDir(projectSlug, sourceSlug)
   const mdPath = path.join(sourceDir, 'source.md')
@@ -187,21 +260,21 @@ router.post('/upload', (req, res) => {
       fs.mkdirSync(path.join(sourceDir, 'media'), { recursive: true })
       fs.writeFileSync(path.join(sourceDir, `source-original${ext}`), req.file.buffer)
 
-      const placeholder = [
-        `# ${title.trim()}`,
-        '',
-        `[Source uploaded: ${originalName}]`,
-        `[Parsing for ${ext} files will be added in an upcoming step.]`,
-        `[Open this source to generate artifacts once parsing is available.]`,
-      ].join('\n')
-      fs.writeFileSync(path.join(sourceDir, 'source.md'), placeholder)
+      const { markdown, mediaFiles, manifest } = parseSourceFile(
+        req.file.buffer, ext, title, originalName
+      )
+
+      fs.writeFileSync(path.join(sourceDir, 'source.md'), markdown)
       fs.writeFileSync(
         path.join(sourceDir, 'context.json'),
         JSON.stringify({ role: '', experience: '', useCase: '' }, null, 2)
       )
+      for (const { filename, buffer } of mediaFiles) {
+        fs.writeFileSync(path.join(sourceDir, 'media', filename), buffer)
+      }
       fs.writeFileSync(
         path.join(sourceDir, 'media', 'manifest.json'),
-        JSON.stringify({ images: [] }, null, 2)
+        JSON.stringify(manifest, null, 2)
       )
 
       console.log(`[upload] ${originalName} (${(req.file.size / 1024).toFixed(1)} KB) → ${projectSlug}/${slug}`)
