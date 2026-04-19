@@ -17,6 +17,7 @@ const path = require('path')
 const Anthropic = require('@anthropic-ai/sdk')
 const Ajv = require('ajv')
 const { SYSTEM_PROMPT } = require('./system-prompt')
+const { ERROR_TYPES } = require('../../lib/error-types')
 
 const DEFAULT_MODEL = 'claude-sonnet-4-6'
 const DEFAULT_MAX_TOKENS = 4096
@@ -49,10 +50,13 @@ function stripFences(text) {
 // Thrown when Claude returns a shape that doesn't match the type's
 // schema. Carries enough detail for the route handler to surface an
 // actionable error (and for Phase 2B-2 refinement to inspect).
+// `.errorType` tags it so the route layer can funnel it through the
+// same error-classification path as SDK-level failures.
 class SchemaValidationError extends Error {
   constructor(type, errors) {
     super(`Response failed ${type} schema validation`)
     this.name = 'SchemaValidationError'
+    this.errorType = ERROR_TYPES.SCHEMA_VALIDATION
     this.type = type
     this.errors = errors
   }
@@ -65,6 +69,7 @@ class ClaudeJsonParseError extends Error {
   constructor(raw) {
     super('Claude response was not valid JSON')
     this.name = 'ClaudeJsonParseError'
+    this.errorType = ERROR_TYPES.MALFORMED_JSON
     this.raw = raw
   }
 }

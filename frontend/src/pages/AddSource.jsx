@@ -1,5 +1,10 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
+import { api } from '../lib/apiFetch'
+import { useAsyncAction } from '../hooks/useAsyncAction'
+import { actionPropsFor } from '../lib/errorActions'
+import LoadingState from '../components/LoadingState'
+import ErrorState from '../components/ErrorState'
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.pptx', '.docx', '.md', '.txt']
 const MAX_FILE_BYTES = 25 * 1024 * 1024   // 25 MB
@@ -29,8 +34,7 @@ function AddSource() {
 
   // Shared form fields
   const [newTitle, setNewTitle] = useState('')
-  const [creating, setCreating] = useState(false)
-  const [createError, setCreateError] = useState(null)
+  const createAction = useAsyncAction()
 
   // Mode: 'paste' uses the textarea; 'file' uses the upload zone
   const [mode, setMode] = useState('paste')
@@ -77,63 +81,46 @@ function AddSource() {
 
   function switchMode(next) {
     setMode(next)
-    setCreateError(null)
+    createAction.clearError()
     setFileError(null)
     setSelectedFile(null)
     setNewContent('')
   }
 
-  async function submitPaste() {
-    const res = await fetch(`/api/projects/${projectSlug}/sources`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newTitle, content: newContent })
+  const submitPaste = useCallback(() => {
+    return api.post(`/api/projects/${projectSlug}/sources`, {
+      title: newTitle,
+      content: newContent,
     })
-    return res.json()
-  }
+  }, [projectSlug, newTitle, newContent])
 
-  // FormData is used instead of JSON because files can't be serialised to JSON.
-  // The browser automatically sets the Content-Type to multipart/form-data
-  // with the correct boundary — do NOT set it manually or the upload breaks.
-  async function submitFile() {
+  const submitFile = useCallback(() => {
+    // FormData is used instead of JSON because files can't be serialised to JSON.
+    // The browser automatically sets the Content-Type to multipart/form-data
+    // with the correct boundary — do NOT set it manually or the upload breaks.
     const formData = new FormData()
     formData.append('title', newTitle)
     formData.append('file', selectedFile)   // 'file' must match multer's .single('file')
+    return api.post(`/api/projects/${projectSlug}/sources/upload`, formData)
+  }, [projectSlug, newTitle, selectedFile])
 
-    const res = await fetch(`/api/projects/${projectSlug}/sources/upload`, {
-      method: 'POST',
-      body: formData
-    })
-    return res.json()
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setCreating(true)
-    setCreateError(null)
-
-    try {
-      const data = mode === 'file' ? await submitFile() : await submitPaste()
-
-      if (data.slug) {
-        navigate(`/projects/${projectSlug}/sources/${data.slug}`)
-      } else {
-        setCreateError(data.error || 'Something went wrong.')
-      }
-    } catch {
-      setCreateError('Could not reach the backend.')
-    } finally {
-      setCreating(false)
+  const handleSubmit = useCallback(async (e) => {
+    if (e) e.preventDefault()
+    const submit = mode === 'file' ? submitFile : submitPaste
+    const data = await createAction.run(submit)
+    if (data?.slug) {
+      navigate(`/projects/${projectSlug}/sources/${data.slug}`)
     }
-  }
+    // on error, form state is preserved so the user can fix + retry
+  }, [mode, submitFile, submitPaste, createAction, navigate, projectSlug])
 
   function submitLabel() {
-    if (creating) return mode === 'file' ? 'Uploading...' : 'Saving...'
+    if (createAction.loading) return mode === 'file' ? 'Uploading...' : 'Saving...'
     return mode === 'file' ? 'Upload source' : 'Save source'
   }
 
   function submitDisabled() {
-    if (creating) return true
+    if (createAction.loading) return true
     if (!newTitle.trim()) return true
     if (mode === 'paste') return !newContent.trim()
     if (mode === 'file') return !selectedFile
@@ -158,6 +145,7 @@ function AddSource() {
             type="button"
             className={`source-mode-btn ${mode === 'paste' ? 'active' : ''}`}
             onClick={() => switchMode('paste')}
+            disabled={createAction.loading}
           >
             Paste text
           </button>
@@ -165,6 +153,7 @@ function AddSource() {
             type="button"
             className={`source-mode-btn ${mode === 'file' ? 'active' : ''}`}
             onClick={() => switchMode('file')}
+            disabled={createAction.loading}
           >
             Upload file
           </button>
@@ -181,6 +170,7 @@ function AddSource() {
               onChange={e => setNewTitle(e.target.value)}
               required
               autoFocus={mode === 'paste'}
+              disabled={createAction.loading}
             />
           </div>
 
@@ -194,6 +184,7 @@ function AddSource() {
                 onChange={e => setNewContent(e.target.value)}
                 rows={10}
                 required
+                disabled={createAction.loading}
               />
             </div>
           )}
@@ -204,7 +195,7 @@ function AddSource() {
 
               <div
                 className={`upload-zone ${dragOver ? 'drag-over' : ''} ${selectedFile ? 'has-file' : ''}`}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => !createAction.loading && fileInputRef.current?.click()}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -215,6 +206,7 @@ function AddSource() {
                   accept={ALLOWED_EXTENSIONS.join(',')}
                   style={{ display: 'none' }}
                   onChange={e => handleFileSelect(e.target.files[0])}
+                  disabled={createAction.loading}
                 />
 
                 {selectedFile ? (
@@ -228,6 +220,7 @@ function AddSource() {
                       type="button"
                       className="upload-zone-change"
                       onClick={e => { e.stopPropagation(); setSelectedFile(null) }}
+                      disabled={createAction.loading}
                     >
                       Change file
                     </button>
@@ -253,7 +246,20 @@ function AddSource() {
             </div>
           )}
 
-          {createError && <div className="status-message error">{createError}</div>}
+          {createAction.loading && (
+            <LoadingState
+              subtle
+              message={mode === 'file' ? 'Uploading and parsing file...' : 'Saving source...'}
+            />
+          )}
+
+          {createAction.error && (
+            <ErrorState
+              message={createAction.error.userMessage}
+              onRetry={handleSubmit}
+              {...actionPropsFor(createAction.error.errorType)}
+            />
+          )}
 
           <div className="form-actions">
             <button type="submit" className="btn btn-primary" disabled={submitDisabled()}>

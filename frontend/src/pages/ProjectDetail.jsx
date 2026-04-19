@@ -1,6 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import SourceCard from '../components/SourceCard'
+import { api } from '../lib/apiFetch'
+import { useAsyncAction } from '../hooks/useAsyncAction'
+import { actionPropsFor } from '../lib/errorActions'
+import LoadingState from '../components/LoadingState'
+import ErrorState from '../components/ErrorState'
 
 // ProjectDetail: a single project's view.
 // Left column: sources grid. Right sidebar: three steering panels
@@ -12,72 +17,79 @@ function ProjectDetail() {
 
   const [project, setProject] = useState(null)
   const [sources, setSources] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [pageError, setPageError] = useState(null)
 
   // Editable sidebar fields — each panel has its own independent save state.
   const [styleGuide, setStyleGuide] = useState('')
   const [customInstructions, setCustomInstructions] = useState('')
   const [targetAudience, setTargetAudience] = useState('')
 
-  const [savingStyle, setSavingStyle] = useState(false)
+  // A single useAsyncAction per sidebar panel keeps loading/error state
+  // independent across the three save buttons.
+  const styleAction = useAsyncAction()
+  const instructionsAction = useAsyncAction()
+  const audienceAction = useAsyncAction()
+
+  // "Saved ✓" flashes — separate from action loading so the checkmark
+  // stays visible after the save resolves.
   const [savedStyle, setSavedStyle] = useState(false)
-  const [savingInstructions, setSavingInstructions] = useState(false)
   const [savedInstructions, setSavedInstructions] = useState(false)
-  const [savingAudience, setSavingAudience] = useState(false)
   const [savedAudience, setSavedAudience] = useState(false)
 
   // Delete confirmation
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+
+  const loadAction = useAsyncAction()
+  const deleteAction = useAsyncAction()
+
+  const loadProject = useCallback(async () => {
+    const data = await loadAction.run(async () => {
+      const [proj, srcs] = await Promise.all([
+        api.get(`/api/projects/${projectSlug}`),
+        api.get(`/api/projects/${projectSlug}/sources`),
+      ])
+      return { proj, srcs }
+    })
+    if (!data) return
+    setProject(data.proj)
+    setStyleGuide(data.proj.styleGuide || '')
+    setCustomInstructions(data.proj.customInstructions || '')
+    setTargetAudience(data.proj.targetAudience || '')
+    setSources(Array.isArray(data.srcs) ? data.srcs : [])
+  }, [loadAction, projectSlug])
 
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/projects/${projectSlug}`).then(r => r.json()),
-      fetch(`/api/projects/${projectSlug}/sources`).then(r => r.json())
-    ])
-      .then(([proj, srcs]) => {
-        if (proj.error) throw new Error(proj.error)
-        setProject(proj)
-        setStyleGuide(proj.styleGuide || '')
-        setCustomInstructions(proj.customInstructions || '')
-        setTargetAudience(proj.targetAudience || '')
-        setSources(Array.isArray(srcs) ? srcs : [])
-        setLoading(false)
-      })
-      .catch(err => {
-        setPageError(err.message || 'Could not load project.')
-        setLoading(false)
-      })
+    loadProject()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectSlug])
 
-  async function saveField(field, value, setSaving, setSaved) {
-    setSaving(true)
-    try {
-      await fetch(`/api/projects/${projectSlug}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: value })
-      })
+  async function saveField(field, value, action, setSaved) {
+    const result = await action.run(() =>
+      api.put(`/api/projects/${projectSlug}`, { [field]: value })
+    )
+    if (result) {
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
-    } finally {
-      setSaving(false)
     }
   }
 
-  async function handleDelete() {
-    setDeleting(true)
-    try {
-      await fetch(`/api/projects/${projectSlug}`, { method: 'DELETE' })
-      navigate('/')
-    } catch {
-      setDeleting(false)
-    }
-  }
+  const handleDelete = useCallback(async () => {
+    const result = await deleteAction.run(() => api.delete(`/api/projects/${projectSlug}`))
+    if (result) navigate('/')
+  }, [deleteAction, projectSlug, navigate])
 
-  if (loading) return <div className="loading">Loading project...</div>
-  if (pageError) return <div className="status-message error">{pageError}</div>
+  if (loadAction.loading && !project) {
+    return <LoadingState message="Loading project..." />
+  }
+  if (loadAction.error && !project) {
+    return (
+      <ErrorState
+        message={loadAction.error.userMessage}
+        onRetry={loadProject}
+        {...actionPropsFor(loadAction.error.errorType)}
+      />
+    )
+  }
+  if (!project) return null
 
   return (
     <div className="project-detail">
@@ -108,16 +120,32 @@ function ProjectDetail() {
           ) : (
             <div className="delete-confirm">
               <span>Delete this project and all its sources?</span>
-              <button className="btn btn-danger btn-sm" onClick={handleDelete} disabled={deleting}>
-                {deleting ? 'Deleting...' : 'Yes, delete'}
+              <button
+                className="btn btn-danger btn-sm"
+                onClick={handleDelete}
+                disabled={deleteAction.loading}
+              >
+                {deleteAction.loading ? 'Deleting...' : 'Yes, delete'}
               </button>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowDeleteConfirm(false)}>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleteAction.loading}
+              >
                 Cancel
               </button>
             </div>
           )}
         </div>
       </div>
+
+      {deleteAction.error && (
+        <ErrorState
+          message={deleteAction.error.userMessage}
+          onRetry={handleDelete}
+          {...actionPropsFor(deleteAction.error.errorType)}
+        />
+      )}
 
       <div className="source-detail-layout">
         <div className="source-main">
@@ -158,11 +186,18 @@ function ProjectDetail() {
               />
               <button
                 className="btn btn-secondary btn-sm sidebar-save-btn"
-                onClick={() => saveField('styleGuide', styleGuide, setSavingStyle, setSavedStyle)}
-                disabled={savingStyle}
+                onClick={() => saveField('styleGuide', styleGuide, styleAction, setSavedStyle)}
+                disabled={styleAction.loading}
               >
-                {savedStyle ? 'Saved ✓' : savingStyle ? 'Saving...' : 'Save'}
+                {savedStyle ? 'Saved ✓' : styleAction.loading ? 'Saving...' : 'Save'}
               </button>
+              {styleAction.error && (
+                <ErrorState
+                  message={styleAction.error.userMessage}
+                  onRetry={() => saveField('styleGuide', styleGuide, styleAction, setSavedStyle)}
+                  {...actionPropsFor(styleAction.error.errorType)}
+                />
+              )}
             </div>
           </div>
 
@@ -187,11 +222,18 @@ function ProjectDetail() {
               />
               <button
                 className="btn btn-secondary btn-sm sidebar-save-btn"
-                onClick={() => saveField('customInstructions', customInstructions, setSavingInstructions, setSavedInstructions)}
-                disabled={savingInstructions}
+                onClick={() => saveField('customInstructions', customInstructions, instructionsAction, setSavedInstructions)}
+                disabled={instructionsAction.loading}
               >
-                {savedInstructions ? 'Saved ✓' : savingInstructions ? 'Saving...' : 'Save'}
+                {savedInstructions ? 'Saved ✓' : instructionsAction.loading ? 'Saving...' : 'Save'}
               </button>
+              {instructionsAction.error && (
+                <ErrorState
+                  message={instructionsAction.error.userMessage}
+                  onRetry={() => saveField('customInstructions', customInstructions, instructionsAction, setSavedInstructions)}
+                  {...actionPropsFor(instructionsAction.error.errorType)}
+                />
+              )}
             </div>
           </div>
 
@@ -214,11 +256,18 @@ function ProjectDetail() {
               />
               <button
                 className="btn btn-secondary btn-sm sidebar-save-btn"
-                onClick={() => saveField('targetAudience', targetAudience, setSavingAudience, setSavedAudience)}
-                disabled={savingAudience}
+                onClick={() => saveField('targetAudience', targetAudience, audienceAction, setSavedAudience)}
+                disabled={audienceAction.loading}
               >
-                {savedAudience ? 'Saved ✓' : savingAudience ? 'Saving...' : 'Save'}
+                {savedAudience ? 'Saved ✓' : audienceAction.loading ? 'Saving...' : 'Save'}
               </button>
+              {audienceAction.error && (
+                <ErrorState
+                  message={audienceAction.error.userMessage}
+                  onRetry={() => saveField('targetAudience', targetAudience, audienceAction, setSavedAudience)}
+                  {...actionPropsFor(audienceAction.error.errorType)}
+                />
+              )}
             </div>
           </div>
 

@@ -7,6 +7,7 @@ const router = express.Router()
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
+const { ERROR_TYPES, sendOk, sendError, mapSdkError } = require('../lib/error-types')
 
 // os.homedir() is the user's home folder: /Users/yourname on Mac, /home/yourname on Linux
 const BYTE_DIR = path.join(os.homedir(), 'Byte')
@@ -23,36 +24,48 @@ function ensureByteDir() {
 // Returns whether a key is saved and a masked preview (last 4 chars only).
 // We never send the full key back to the frontend — it stays on disk only.
 router.get('/', (req, res) => {
-  ensureByteDir()
+  try {
+    ensureByteDir()
 
-  if (!fs.existsSync(SETTINGS_FILE)) {
-    return res.json({ hasApiKey: false, apiKeyPreview: '' })
+    if (!fs.existsSync(SETTINGS_FILE)) {
+      return sendOk(res, { hasApiKey: false, apiKeyPreview: '' })
+    }
+
+    const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'))
+    return sendOk(res, {
+      hasApiKey: !!settings.apiKey,
+      apiKeyPreview: settings.apiKey
+        ? '••••••••' + settings.apiKey.slice(-4)
+        : '',
+    })
+  } catch (err) {
+    const { errorType, debug } = mapSdkError(err)
+    console.error('[settings:get]', errorType, debug || err)
+    return sendError(res, errorType, { debug })
   }
-
-  const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'))
-  res.json({
-    hasApiKey: !!settings.apiKey,
-    apiKeyPreview: settings.apiKey
-      ? '••••••••' + settings.apiKey.slice(-4)
-      : ''
-  })
 })
 
 // POST /api/settings
 // Accepts { apiKey: "sk-ant-..." } and writes it to ~/Byte/settings.json.
 router.post('/', (req, res) => {
-  const { apiKey } = req.body
-  if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim()) {
-    return res.status(400).json({ error: 'apiKey is required' })
+  try {
+    const { apiKey } = req.body
+    if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim()) {
+      return sendError(res, ERROR_TYPES.VALIDATION, { userMessage: 'API key is required.' })
+    }
+
+    ensureByteDir()
+    fs.writeFileSync(
+      SETTINGS_FILE,
+      JSON.stringify({ apiKey: apiKey.trim() }, null, 2)
+    )
+
+    return sendOk(res, { success: true })
+  } catch (err) {
+    const { errorType, debug } = mapSdkError(err)
+    console.error('[settings:save]', errorType, debug || err)
+    return sendError(res, errorType, { debug })
   }
-
-  ensureByteDir()
-  fs.writeFileSync(
-    SETTINGS_FILE,
-    JSON.stringify({ apiKey: apiKey.trim() }, null, 2)
-  )
-
-  res.json({ success: true })
 })
 
 module.exports = router

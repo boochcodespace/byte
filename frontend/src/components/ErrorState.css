@@ -1,0 +1,45 @@
+/* ErrorState — inline recoverable-error card. */
+
+.error-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: var(--color-error);
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  margin-top: 12px;
+}
+
+.error-state-icon {
+  font-size: 18px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.error-state-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.error-state-message {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.error-state-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.error-state-actions .btn {
+  /* Reset the red text colour from .error-state so the buttons keep
+     their own visual hierarchy. */
+  color: var(--color-text-primary);
+}

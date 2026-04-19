@@ -9,7 +9,7 @@
 // All type-specific logic (prompt building, schema validation,
 // output shape, saving) lives in backend/artifact-types/<type>/.
 // This file is intentionally thin: parse the body, look up the type
-// module, delegate, translate errors to HTTP responses.
+// module, delegate, translate errors to the envelope response.
 
 const express = require('express')
 const router = express.Router({ mergeParams: true })
@@ -19,9 +19,11 @@ const os = require('os')
 const { getTypeModule, listSupportedTypes } = require('../artifact-types/registry')
 const { buildPromptContext } = require('../artifact-types/shared/build-prompt-context')
 const {
-  SchemaValidationError,
-  ClaudeJsonParseError,
-} = require('../artifact-types/shared/generate')
+  ERROR_TYPES,
+  sendOk,
+  sendError,
+  mapSdkError,
+} = require('../lib/error-types')
 
 const PROJECTS_DIR = path.join(os.homedir(), 'Byte', 'projects')
 const SETTINGS_FILE = path.join(os.homedir(), 'Byte', 'settings.json')
@@ -38,30 +40,26 @@ router.post('/generate', async (req, res) => {
   } = req.body
 
   if (!artifactType) {
-    return res.status(400).json({ error: 'artifactType is required' })
+    return sendError(res, ERROR_TYPES.VALIDATION, { userMessage: 'artifactType is required' })
   }
   const typeModule = getTypeModule(artifactType)
   if (!typeModule) {
-    return res.status(400).json({
-      error: `Artifact type "${artifactType}" is not supported. Supported: ${listSupportedTypes().join(', ')}`,
+    return sendError(res, ERROR_TYPES.VALIDATION, {
+      userMessage: `Artifact type "${artifactType}" is not supported. Supported: ${listSupportedTypes().join(', ')}`,
     })
   }
 
   if (!fs.existsSync(SETTINGS_FILE)) {
-    return res.status(400).json({
-      error: 'No API key found. Go to Settings and paste your Anthropic API key.',
-    })
+    return sendError(res, ERROR_TYPES.MISSING_API_KEY)
   }
   const { apiKey } = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'))
   if (!apiKey) {
-    return res.status(400).json({
-      error: 'API key is empty. Go to Settings and paste your Anthropic API key.',
-    })
+    return sendError(res, ERROR_TYPES.MISSING_API_KEY)
   }
 
   const sourceDir = path.join(PROJECTS_DIR, projectSlug, 'sources', sourceSlug)
   if (!fs.existsSync(sourceDir)) {
-    return res.status(404).json({ error: 'Source not found' })
+    return sendError(res, ERROR_TYPES.NOT_FOUND, { userMessage: 'Source not found.' })
   }
 
   const mdPath = path.join(sourceDir, 'source.md')
@@ -94,32 +92,17 @@ router.post('/generate', async (req, res) => {
       sourceDir,
       apiKey,
     })
-    res.json(result)
+    return sendOk(res, result)
   } catch (err) {
-    // Translate known error types to friendly responses. Step 2 of
-    // Phase 2B-1 adds client-side recoverable UX for these; the
-    // backend error shape stays stable so Step 2 is a frontend-only
-    // change on top of this contract.
-    if (err instanceof ClaudeJsonParseError) {
-      console.error('[generate] Claude returned non-JSON:', err.raw?.slice(0, 500))
-      return res.status(500).json({
-        error: 'Generation failed to produce valid output. Please try again.',
-        raw: err.raw?.slice(0, 500),
-      })
-    }
-    if (err instanceof SchemaValidationError) {
-      console.error(`[generate] schema validation failed for ${err.type}:`, err.errors)
-      return res.status(500).json({
-        error: 'Generation produced output that failed schema validation. Please try again.',
-        validationErrors: err.errors,
-      })
-    }
-    console.error('[generate] unexpected error:', err)
-    return res.status(500).json({
-      error: err?.message
-        ? `Claude API error: ${err.message}`
-        : 'Unexpected error during generation. Check your API key and try again.',
-    })
+    // Our typed errors (SchemaValidationError, ClaudeJsonParseError)
+    // carry .errorType. SDK / network / fs errors are classified via
+    // mapSdkError. Unknown errors fall through to UNKNOWN.
+    const classified = err.errorType
+      ? { errorType: err.errorType, debug: { message: err.message, raw: err.raw?.slice(0, 500), errors: err.errors } }
+      : mapSdkError(err)
+
+    console.error(`[generate] ${classified.errorType}:`, classified.debug || err)
+    return sendError(res, classified.errorType, { debug: classified.debug })
   }
 })
 

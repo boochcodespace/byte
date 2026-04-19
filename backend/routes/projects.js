@@ -14,6 +14,7 @@ const os = require('os')
 const slugify = require('slugify')
 const crypto = require('crypto')
 const sourcesRouter = require('./sources')
+const { ERROR_TYPES, sendOk, sendError, mapSdkError } = require('../lib/error-types')
 
 const PROJECTS_DIR = path.join(os.homedir(), 'Byte', 'projects')
 
@@ -162,87 +163,123 @@ In your next one-on-one or meeting, set a goal: ask three clarifying questions b
 
 // GET /api/projects — list all projects
 router.get('/', (req, res) => {
-  ensureProjectsDir()
-  seedExampleIfEmpty()
+  try {
+    ensureProjectsDir()
+    seedExampleIfEmpty()
 
-  const projects = fs.readdirSync(PROJECTS_DIR)
-    .filter(slug => fs.statSync(path.join(PROJECTS_DIR, slug)).isDirectory())
-    .map(buildProjectSummary)
-    .filter(Boolean)
-    .reverse()
+    const projects = fs.readdirSync(PROJECTS_DIR)
+      .filter(slug => fs.statSync(path.join(PROJECTS_DIR, slug)).isDirectory())
+      .map(buildProjectSummary)
+      .filter(Boolean)
+      .reverse()
 
-  res.json(projects)
+    return sendOk(res, projects)
+  } catch (err) {
+    const { errorType, debug } = mapSdkError(err)
+    console.error('[projects:list]', errorType, debug || err)
+    return sendError(res, errorType, { debug })
+  }
 })
 
 // GET /api/projects/:projectSlug
 router.get('/:projectSlug', (req, res) => {
-  const { projectSlug } = req.params
-  const project = readProject(projectSlug)
-  if (!project) return res.status(404).json({ error: 'Project not found' })
+  try {
+    const { projectSlug } = req.params
+    const project = readProject(projectSlug)
+    if (!project) return sendError(res, ERROR_TYPES.NOT_FOUND, { userMessage: 'Project not found.' })
 
-  res.json({
-    ...project,
-    sourceCount: countSources(projectSlug),
-    artifactCount: countTotalArtifacts(projectSlug)
-  })
+    return sendOk(res, {
+      ...project,
+      sourceCount: countSources(projectSlug),
+      artifactCount: countTotalArtifacts(projectSlug),
+    })
+  } catch (err) {
+    const { errorType, debug } = mapSdkError(err)
+    console.error('[projects:get]', errorType, debug || err)
+    return sendError(res, errorType, { debug })
+  }
 })
 
 // POST /api/projects — create a new project
 router.post('/', (req, res) => {
-  const { title, description, styleGuide, targetAudience, customInstructions } = req.body
-  if (!title || !title.trim()) return res.status(400).json({ error: 'title is required' })
+  try {
+    const { title, description, styleGuide, targetAudience, customInstructions } = req.body
+    if (!title || !title.trim()) {
+      return sendError(res, ERROR_TYPES.VALIDATION, { userMessage: 'Title is required.' })
+    }
 
-  ensureProjectsDir()
-  const slug = makeProjectSlug(title)
-  const projectDir = path.join(PROJECTS_DIR, slug)
-  fs.mkdirSync(path.join(projectDir, 'sources'), { recursive: true })
+    ensureProjectsDir()
+    const slug = makeProjectSlug(title)
+    const projectDir = path.join(PROJECTS_DIR, slug)
+    fs.mkdirSync(path.join(projectDir, 'sources'), { recursive: true })
 
-  const project = {
-    id: crypto.randomUUID(),
-    slug,
-    title: title.trim(),
-    description: description || '',
-    styleGuide: styleGuide || '',
-    targetAudience: targetAudience || '',
-    customInstructions: customInstructions || '',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    const project = {
+      id: crypto.randomUUID(),
+      slug,
+      title: title.trim(),
+      description: description || '',
+      styleGuide: styleGuide || '',
+      targetAudience: targetAudience || '',
+      customInstructions: customInstructions || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    fs.writeFileSync(path.join(projectDir, 'project.json'), JSON.stringify(project, null, 2))
+
+    return sendOk(res, buildProjectSummary(slug))
+  } catch (err) {
+    const { errorType, debug } = mapSdkError(err)
+    console.error('[projects:create]', errorType, debug || err)
+    return sendError(res, errorType, { debug })
   }
-  fs.writeFileSync(path.join(projectDir, 'project.json'), JSON.stringify(project, null, 2))
-
-  res.json(buildProjectSummary(slug))
 })
 
 // PUT /api/projects/:projectSlug — update project fields
 router.put('/:projectSlug', (req, res) => {
-  const { projectSlug } = req.params
-  const projectPath = path.join(PROJECTS_DIR, projectSlug, 'project.json')
-  if (!fs.existsSync(projectPath)) return res.status(404).json({ error: 'Project not found' })
+  try {
+    const { projectSlug } = req.params
+    const projectPath = path.join(PROJECTS_DIR, projectSlug, 'project.json')
+    if (!fs.existsSync(projectPath)) {
+      return sendError(res, ERROR_TYPES.NOT_FOUND, { userMessage: 'Project not found.' })
+    }
 
-  const existing = JSON.parse(fs.readFileSync(projectPath, 'utf-8'))
-  const { title, description, styleGuide, targetAudience, customInstructions } = req.body
+    const existing = JSON.parse(fs.readFileSync(projectPath, 'utf-8'))
+    const { title, description, styleGuide, targetAudience, customInstructions } = req.body
 
-  const updated = {
-    ...existing,
-    title: title !== undefined ? title : existing.title,
-    description: description !== undefined ? description : existing.description,
-    styleGuide: styleGuide !== undefined ? styleGuide : existing.styleGuide,
-    targetAudience: targetAudience !== undefined ? targetAudience : existing.targetAudience,
-    customInstructions: customInstructions !== undefined ? customInstructions : (existing.customInstructions || ''),
-    updatedAt: new Date().toISOString()
+    const updated = {
+      ...existing,
+      title: title !== undefined ? title : existing.title,
+      description: description !== undefined ? description : existing.description,
+      styleGuide: styleGuide !== undefined ? styleGuide : existing.styleGuide,
+      targetAudience: targetAudience !== undefined ? targetAudience : existing.targetAudience,
+      customInstructions: customInstructions !== undefined ? customInstructions : (existing.customInstructions || ''),
+      updatedAt: new Date().toISOString(),
+    }
+    fs.writeFileSync(projectPath, JSON.stringify(updated, null, 2))
+    return sendOk(res, { success: true })
+  } catch (err) {
+    const { errorType, debug } = mapSdkError(err)
+    console.error('[projects:update]', errorType, debug || err)
+    return sendError(res, errorType, { debug })
   }
-  fs.writeFileSync(projectPath, JSON.stringify(updated, null, 2))
-  res.json({ success: true })
 })
 
 // DELETE /api/projects/:projectSlug — delete project and all its sources
 router.delete('/:projectSlug', (req, res) => {
-  const { projectSlug } = req.params
-  const projectDir = path.join(PROJECTS_DIR, projectSlug)
-  if (!fs.existsSync(projectDir)) return res.status(404).json({ error: 'Project not found' })
+  try {
+    const { projectSlug } = req.params
+    const projectDir = path.join(PROJECTS_DIR, projectSlug)
+    if (!fs.existsSync(projectDir)) {
+      return sendError(res, ERROR_TYPES.NOT_FOUND, { userMessage: 'Project not found.' })
+    }
 
-  fs.rmSync(projectDir, { recursive: true, force: true })
-  res.json({ success: true })
+    fs.rmSync(projectDir, { recursive: true, force: true })
+    return sendOk(res, { success: true })
+  } catch (err) {
+    const { errorType, debug } = mapSdkError(err)
+    console.error('[projects:delete]', errorType, debug || err)
+    return sendError(res, errorType, { debug })
+  }
 })
 
 module.exports = router

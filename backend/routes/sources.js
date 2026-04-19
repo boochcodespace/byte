@@ -19,6 +19,7 @@ const { parseDocx } = require('../lib/parsers/docx')
 const { parsePdf, probePdf } = require('../lib/parsers/pdf')
 const { parsePptx } = require('../lib/parsers/pptx')
 const { UserFacingError } = require('../lib/parsers/errors')
+const { ERROR_TYPES, sendOk, sendError, mapSdkError } = require('../lib/error-types')
 
 const PROJECTS_DIR = path.join(os.homedir(), 'Byte', 'projects')
 const ALLOWED_EXTENSIONS = ['.pdf', '.pptx', '.docx', '.md', '.txt']
@@ -185,73 +186,95 @@ function buildSourceSummary(projectSlug, sourceSlug) {
 
 // GET /api/projects/:projectSlug/sources
 router.get('/', (req, res) => {
-  const { projectSlug } = req.params
-  const sourcesDir = path.join(PROJECTS_DIR, projectSlug, 'sources')
-  if (!fs.existsSync(sourcesDir)) return res.json([])
+  try {
+    const { projectSlug } = req.params
+    const sourcesDir = path.join(PROJECTS_DIR, projectSlug, 'sources')
+    if (!fs.existsSync(sourcesDir)) return sendOk(res, [])
 
-  const sources = fs.readdirSync(sourcesDir)
-    .filter(s => fs.statSync(path.join(sourcesDir, s)).isDirectory())
-    .map(s => buildSourceSummary(projectSlug, s))
-    .reverse()
+    const sources = fs.readdirSync(sourcesDir)
+      .filter(s => fs.statSync(path.join(sourcesDir, s)).isDirectory())
+      .map(s => buildSourceSummary(projectSlug, s))
+      .reverse()
 
-  res.json(sources)
+    return sendOk(res, sources)
+  } catch (err) {
+    const { errorType, debug } = mapSdkError(err)
+    console.error('[sources:list]', errorType, debug || err)
+    return sendError(res, errorType, { debug })
+  }
 })
 
 // GET /api/projects/:projectSlug/sources/:sourceSlug
 router.get('/:sourceSlug', (req, res) => {
-  const { projectSlug, sourceSlug } = req.params
-  const sourceDir = getSourceDir(projectSlug, sourceSlug)
-  if (!fs.existsSync(sourceDir)) return res.status(404).json({ error: 'Source not found' })
+  try {
+    const { projectSlug, sourceSlug } = req.params
+    const sourceDir = getSourceDir(projectSlug, sourceSlug)
+    if (!fs.existsSync(sourceDir)) {
+      return sendError(res, ERROR_TYPES.NOT_FOUND, { userMessage: 'Source not found.' })
+    }
 
-  const mdPath = path.join(sourceDir, 'source.md')
-  const content = fs.existsSync(mdPath) ? fs.readFileSync(mdPath, 'utf-8') : ''
+    const mdPath = path.join(sourceDir, 'source.md')
+    const content = fs.existsSync(mdPath) ? fs.readFileSync(mdPath, 'utf-8') : ''
 
-  const artifactsDir = path.join(sourceDir, 'artifacts')
-  let artifacts = []
-  if (fs.existsSync(artifactsDir)) {
-    artifacts = fs.readdirSync(artifactsDir)
-      .filter(f => fs.statSync(path.join(artifactsDir, f)).isDirectory())
-      .map(folder => {
-        const artifactFile = path.join(artifactsDir, folder, 'artifact.json')
-        if (!fs.existsSync(artifactFile)) return null
-        return { folder, ...JSON.parse(fs.readFileSync(artifactFile, 'utf-8')) }
-      })
-      .filter(Boolean)
-      .reverse()
+    const artifactsDir = path.join(sourceDir, 'artifacts')
+    let artifacts = []
+    if (fs.existsSync(artifactsDir)) {
+      artifacts = fs.readdirSync(artifactsDir)
+        .filter(f => fs.statSync(path.join(artifactsDir, f)).isDirectory())
+        .map(folder => {
+          const artifactFile = path.join(artifactsDir, folder, 'artifact.json')
+          if (!fs.existsSync(artifactFile)) return null
+          return { folder, ...JSON.parse(fs.readFileSync(artifactFile, 'utf-8')) }
+        })
+        .filter(Boolean)
+        .reverse()
+    }
+
+    return sendOk(res, {
+      slug: sourceSlug,
+      title: extractTitle(content),
+      content,
+      context: readContext(sourceDir),
+      artifacts,
+    })
+  } catch (err) {
+    const { errorType, debug } = mapSdkError(err)
+    console.error('[sources:get]', errorType, debug || err)
+    return sendError(res, errorType, { debug })
   }
-
-  res.json({
-    slug: sourceSlug,
-    title: extractTitle(content),
-    content,
-    context: readContext(sourceDir),
-    artifacts
-  })
 })
 
 // POST /api/projects/:projectSlug/sources — create from pasted text
 router.post('/', (req, res) => {
-  const { projectSlug } = req.params
-  const { title, content } = req.body
-  if (!title || !content) return res.status(400).json({ error: 'title and content are required' })
+  try {
+    const { projectSlug } = req.params
+    const { title, content } = req.body
+    if (!title || !content) {
+      return sendError(res, ERROR_TYPES.VALIDATION, { userMessage: 'Title and content are required.' })
+    }
 
-  const sourcesDir = path.join(PROJECTS_DIR, projectSlug, 'sources')
-  fs.mkdirSync(sourcesDir, { recursive: true })
-  const slug = makeSlug(title, sourcesDir)
-  const sourceDir = path.join(sourcesDir, slug)
+    const sourcesDir = path.join(PROJECTS_DIR, projectSlug, 'sources')
+    fs.mkdirSync(sourcesDir, { recursive: true })
+    const slug = makeSlug(title, sourcesDir)
+    const sourceDir = path.join(sourcesDir, slug)
 
-  fs.mkdirSync(path.join(sourceDir, 'media'), { recursive: true })
-  fs.writeFileSync(path.join(sourceDir, 'source.md'), content)
-  fs.writeFileSync(
-    path.join(sourceDir, 'context.json'),
-    JSON.stringify({ role: '', experience: '', useCase: '' }, null, 2)
-  )
-  fs.writeFileSync(
-    path.join(sourceDir, 'media', 'manifest.json'),
-    JSON.stringify({ images: [] }, null, 2)
-  )
+    fs.mkdirSync(path.join(sourceDir, 'media'), { recursive: true })
+    fs.writeFileSync(path.join(sourceDir, 'source.md'), content)
+    fs.writeFileSync(
+      path.join(sourceDir, 'context.json'),
+      JSON.stringify({ role: '', experience: '', useCase: '' }, null, 2)
+    )
+    fs.writeFileSync(
+      path.join(sourceDir, 'media', 'manifest.json'),
+      JSON.stringify({ images: [] }, null, 2)
+    )
 
-  res.json(buildSourceSummary(projectSlug, slug))
+    return sendOk(res, buildSourceSummary(projectSlug, slug))
+  } catch (err) {
+    const { errorType, debug } = mapSdkError(err)
+    console.error('[sources:create]', errorType, debug || err)
+    return sendError(res, errorType, { debug })
+  }
 })
 
 // POST /api/projects/:projectSlug/sources/upload — file upload (multipart/form-data)
@@ -261,13 +284,17 @@ router.post('/upload', (req, res) => {
       const message = err.code === 'LIMIT_FILE_SIZE'
         ? 'File exceeds the 25 MB limit.'
         : err.message
-      return res.status(400).json({ error: message })
+      return sendError(res, ERROR_TYPES.VALIDATION, { userMessage: message })
     }
 
     const { projectSlug } = req.params
     const { title } = req.body
-    if (!title || !title.trim()) return res.status(400).json({ error: 'title is required' })
-    if (!req.file) return res.status(400).json({ error: 'No file was included in the upload.' })
+    if (!title || !title.trim()) {
+      return sendError(res, ERROR_TYPES.VALIDATION, { userMessage: 'Title is required.' })
+    }
+    if (!req.file) {
+      return sendError(res, ERROR_TYPES.VALIDATION, { userMessage: 'No file was included in the upload.' })
+    }
 
     const originalName = req.file.originalname
     const ext = path.extname(originalName).toLowerCase()
@@ -279,7 +306,7 @@ router.post('/upload', (req, res) => {
       await preflightCheck(req.file.buffer, ext)
     } catch (preErr) {
       if (preErr instanceof UserFacingError) {
-        return res.status(400).json({ error: preErr.message })
+        return sendError(res, ERROR_TYPES.VALIDATION, { userMessage: preErr.message })
       }
       console.warn('[preflight] ignored:', preErr.message)
     }
@@ -312,37 +339,54 @@ router.post('/upload', (req, res) => {
 
       console.log(`[upload] ${originalName} (${(req.file.size / 1024).toFixed(1)} KB) → ${projectSlug}/${slug}`)
 
-      res.json(buildSourceSummary(projectSlug, slug))
+      return sendOk(res, buildSourceSummary(projectSlug, slug))
     } catch (writeErr) {
-      console.error('[upload] Failed to save source:', writeErr)
-      res.status(500).json({ error: `Failed to save uploaded source: ${writeErr.message}` })
+      const { errorType, debug } = mapSdkError(writeErr)
+      console.error('[sources:upload]', errorType, debug || writeErr)
+      return sendError(res, errorType, { debug })
     }
   })
 })
 
 // PUT /api/projects/:projectSlug/sources/:sourceSlug — update content and/or context
 router.put('/:sourceSlug', (req, res) => {
-  const { projectSlug, sourceSlug } = req.params
-  const sourceDir = getSourceDir(projectSlug, sourceSlug)
-  if (!fs.existsSync(sourceDir)) return res.status(404).json({ error: 'Source not found' })
+  try {
+    const { projectSlug, sourceSlug } = req.params
+    const sourceDir = getSourceDir(projectSlug, sourceSlug)
+    if (!fs.existsSync(sourceDir)) {
+      return sendError(res, ERROR_TYPES.NOT_FOUND, { userMessage: 'Source not found.' })
+    }
 
-  const { content, context } = req.body
-  if (content !== undefined) fs.writeFileSync(path.join(sourceDir, 'source.md'), content)
-  if (context !== undefined) {
-    fs.writeFileSync(path.join(sourceDir, 'context.json'), JSON.stringify(context, null, 2))
+    const { content, context } = req.body
+    if (content !== undefined) fs.writeFileSync(path.join(sourceDir, 'source.md'), content)
+    if (context !== undefined) {
+      fs.writeFileSync(path.join(sourceDir, 'context.json'), JSON.stringify(context, null, 2))
+    }
+
+    return sendOk(res, { success: true })
+  } catch (err) {
+    const { errorType, debug } = mapSdkError(err)
+    console.error('[sources:update]', errorType, debug || err)
+    return sendError(res, errorType, { debug })
   }
-
-  res.json({ success: true })
 })
 
 // DELETE /api/projects/:projectSlug/sources/:sourceSlug
 router.delete('/:sourceSlug', (req, res) => {
-  const { projectSlug, sourceSlug } = req.params
-  const sourceDir = getSourceDir(projectSlug, sourceSlug)
-  if (!fs.existsSync(sourceDir)) return res.status(404).json({ error: 'Source not found' })
+  try {
+    const { projectSlug, sourceSlug } = req.params
+    const sourceDir = getSourceDir(projectSlug, sourceSlug)
+    if (!fs.existsSync(sourceDir)) {
+      return sendError(res, ERROR_TYPES.NOT_FOUND, { userMessage: 'Source not found.' })
+    }
 
-  fs.rmSync(sourceDir, { recursive: true, force: true })
-  res.json({ success: true })
+    fs.rmSync(sourceDir, { recursive: true, force: true })
+    return sendOk(res, { success: true })
+  } catch (err) {
+    const { errorType, debug } = mapSdkError(err)
+    console.error('[sources:delete]', errorType, debug || err)
+    return sendError(res, errorType, { debug })
+  }
 })
 
 module.exports = router
