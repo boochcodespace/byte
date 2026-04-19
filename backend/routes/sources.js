@@ -15,6 +15,7 @@ const os = require('os')
 const slugify = require('slugify')
 const multer = require('multer')
 const artifactsRouter = require('./artifacts')
+const { parseDocx } = require('../lib/parsers/docx')
 
 const PROJECTS_DIR = path.join(os.homedir(), 'Byte', 'projects')
 const ALLOWED_EXTENSIONS = ['.pdf', '.pptx', '.docx', '.md', '.txt']
@@ -78,10 +79,12 @@ function makeSlug(title, sourcesDir) {
 //   - mediaFiles: [{ filename, buffer }] to drop into media/ (empty for now)
 //   - manifest:   { images: [...] } that lands in media/manifest.json
 //
-// Step 3 handles .md and .txt. Steps 4–6 extend the switch for .docx / .pdf
-// / .pptx. The placeholderBranch() fallback keeps unsupported extensions
-// working the same way they did before parsing was added — the source is
-// created, the original file is preserved, and the UI shows a clear notice.
+// Step 3 handles .md and .txt (inline here). Steps 4–6 add binary-format
+// parsers in lib/parsers/. The placeholderBranch fallback keeps unsupported
+// extensions working the same way they did before parsing was added.
+//
+// TODO (future cleanup): for consistency, move parseMarkdown/parsePlainText
+// out to lib/parsers/text.js alongside docx/pdf/pptx.
 
 function stripBom(str) {
   return str.charCodeAt(0) === 0xFEFF ? str.slice(1) : str
@@ -110,7 +113,7 @@ function parsePlainText(buffer, title) {
   return `# ${title.trim()}\n\n${text}`
 }
 
-function parseSourceFile(buffer, ext, title, originalName) {
+async function parseSourceFile(buffer, ext, title, originalName) {
   const emptyManifest = { images: [] }
   try {
     switch (ext) {
@@ -118,8 +121,10 @@ function parseSourceFile(buffer, ext, title, originalName) {
         return { markdown: parseMarkdown(buffer, title), mediaFiles: [], manifest: emptyManifest }
       case '.txt':
         return { markdown: parsePlainText(buffer, title), mediaFiles: [], manifest: emptyManifest }
+      case '.docx':
+        return await parseDocx(buffer, title, originalName)
       default:
-        // .pdf / .pptx / .docx — real parsers land in Steps 4–6.
+        // .pdf / .pptx — real parsers land in Steps 5–6.
         return {
           markdown: placeholderMarkdown(title, originalName, ext),
           mediaFiles: [],
@@ -260,7 +265,7 @@ router.post('/upload', (req, res) => {
       fs.mkdirSync(path.join(sourceDir, 'media'), { recursive: true })
       fs.writeFileSync(path.join(sourceDir, `source-original${ext}`), req.file.buffer)
 
-      const { markdown, mediaFiles, manifest } = parseSourceFile(
+      const { markdown, mediaFiles, manifest } = await parseSourceFile(
         req.file.buffer, ext, title, originalName
       )
 
