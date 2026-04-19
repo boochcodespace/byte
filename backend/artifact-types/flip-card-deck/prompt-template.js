@@ -24,31 +24,67 @@ ${objectivesBlock}
 ${sourceContent}
 
 ═══ REQUIREMENTS ═══
-- Distill the source. Do not invent content beyond what the source supports.
-- If the source is thin, produce a tighter deck (4-6 cards) rather than
-  padding with generic content to hit a target count.
-- If the source is rich, produce a fuller deck (6-10 cards).
-- One learning objective for the full deck. State it at the top.
-- Open with a hook card: a decision, stat, or challenge grounded in the
-  source material that pulls the learner in before they know the answer.
-- Each content card: front is a question, key term, or decision point
-  drawn from the source; back is the answer or insight, stripped to its
-  core, in the project's voice.
-- Final card is an "Apply today" card: one specific action the learner
-  can take right now, grounded in the source's actual content.
-- Use the source's own frameworks, terminology, and examples. Do not
-  substitute your own.
-- Suggest one visual anchor for the deck, describing it precisely enough
-  that it could be sketched.
-- Estimate completion time in minutes.
-- If the source is too thin to support the full requirements, produce
-  your best distillation and note the gap in spaced_repetition_notes.
+
+DECK SIZING
+- 6 to 10 cards when source is rich
+- 4 to 6 cards when source is thin (do not pad)
+- One learning objective for the full deck, stated at the top
+- Every card is atomic: one fact, one decision point, one insight
+
+CARD CONSTRUCTION
+- Front: a question, key term, or decision point (maximum 20 words)
+- Back: the answer or insight, stripped to its core (maximum \
+25 words, one sentence)
+- Never compound questions on the front
+- Reject any card whose front could be answered without actually \
+engaging with the source content
+
+CARD TYPES
+- One HOOK card opens the deck: a decision, stat, or challenge \
+grounded in the source that pulls the learner in before they know \
+the answer
+- CONTENT cards form the body: each covering one atomic concept from \
+the source
+- One APPLY card closes the deck: a specific action the learner can \
+take within 24 hours, with a named trigger ("Next time X happens, \
+do Y")
+
+BLOOM ALIGNMENT
+Flip cards naturally fit Remember and Understand levels. If the \
+learning objective requires Apply, Analyze, or Evaluate, flip cards \
+may not be the right format; generate what you can but note in \
+spaced_repetition_notes that a Knowledge Check or Scenario would \
+serve the objective better.
+
+VOICE
+- Second person, present tense, active voice
+- Conversational but disciplined
+- Front is the learner's question; back is the expert's answer
+- No filler phrases, no throat-clearing, no hedging
+
+FEW-SHOT EXAMPLE
+
+Here is one exemplar card showing the structural detail expected:
+
+  INPUT: "DHCP lease" for junior IT support
+  OUTPUT: {
+    "type": "content",
+    "front": "What does a DHCP server hand out, and for how long by default?",
+    "back": "An IP address (plus subnet mask, gateway, DNS) leased for 24 hours by default on most consumer routers."
+  }
+
+Note the structural details: specific default values (24 hours), \
+parenthetical enrichment (plus subnet mask...), concrete scoping \
+(consumer routers). Not "leased for a period of time." Not "various \
+networking parameters." This level of specific, named detail is what \
+separates professional flip cards from generic AI output.
 
 Respond in this JSON schema:
 {
-  "learning_objective": "string",
+  "learning_objective": "string (states one Bloom-verb objective)",
   "estimated_minutes": number,
-  "visual_anchor_description": "string",
+  "visual_anchor_description": "string (describe one diagram, chart, \
+or visual metaphor that would anchor this deck)",
   "cards": [
     {
       "type": "hook | content | apply",
@@ -56,7 +92,9 @@ Respond in this JSON schema:
       "back": "string"
     }
   ],
-  "spaced_repetition_notes": "string describing which cards would benefit from resurfacing as a different artifact type later, and flagging any gaps or ambiguities in the source material"
+  "spaced_repetition_notes": "string (which cards would benefit from \
+resurfacing as a different artifact type later; any gaps or \
+ambiguities in the source)"
 }`
 }
 
