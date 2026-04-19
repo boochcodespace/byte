@@ -102,13 +102,11 @@ Byte extracts text and embedded images from uploaded files into a canonical shap
 | `.pdf`  | per-page with `[page N]` markers | yes (raster only) | Line breaks inferred from text positioning. Vector graphics and form XObjects are skipped. Password-protected PDFs are rejected at upload. Scanned PDFs get a clear marker — OCR is not supported. |
 | `.pptx` | per-slide with title, body, and speaker notes | yes | Hidden slides are included and flagged. Slide layouts and masters are not extracted (template text only). SmartArt and charts are skipped. |
 
-### Visual awareness (Level 1)
+### Source image extraction
 
 When a source has embedded images, each one is catalogued in `media/manifest.json` with rich metadata: sequential filename, source format, position context (`"after paragraph N"`, `"page N"`, `"slide N"`), up to ~200 chars of nearby text, pixel dimensions, and extraction timestamp.
 
-Generation uses these manifests **as text context**: the backend formats the manifest into an AVAILABLE SOURCE IMAGES section of the user message, and Claude references images by filename when a visual anchor would help a card. The flip card renderer then fetches those images from the source's media folder and displays them on each card with a "Source: slide 3" / "Source: page 12" caption. Filenames Claude can't be tied back to the manifest are discarded (nulled out) so the renderer never shows a broken image.
-
-Claude does not yet see image pixels — only their text metadata. That upgrade (Level 3 — vision via Claude's multimodal capability) is a later phase. Today's Level 1 approach keeps generation fast and cheap while still producing artifacts that reuse the SME's actual diagrams.
+Extraction runs on every upload so the data is ready for future use. Today's generation pipeline does not consume the manifest and artifacts are rendered as text only; that visual-awareness integration is deferred to a future phase.
 
 ## Where Your Data Lives
 

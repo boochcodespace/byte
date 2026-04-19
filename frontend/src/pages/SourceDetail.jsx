@@ -180,11 +180,7 @@ function SourceDetail() {
 
           {selectedArtifact && (
             <div className="card artifact-preview">
-              <FlipCardDeck
-                artifact={selectedArtifact}
-                projectSlug={projectSlug}
-                sourceSlug={slug}
-              />
+              <FlipCardDeck artifact={selectedArtifact} />
             </div>
           )}
         </div>
