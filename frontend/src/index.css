@@ -255,6 +255,122 @@ code {
 }
 
 /* ===================================================================
+   ADD SOURCE FORM — MODE TOGGLE + UPLOAD ZONE
+   =================================================================== */
+
+/* Segmented control that switches between Paste / Upload modes */
+.source-mode-toggle {
+  display: flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.source-mode-btn {
+  flex: 1;
+  padding: 8px 16px;
+  background: var(--color-surface);
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  color: var(--color-text-secondary);
+  transition: background 0.15s, color 0.15s;
+}
+
+.source-mode-btn + .source-mode-btn {
+  border-left: 1px solid var(--color-border);
+}
+
+.source-mode-btn.active {
+  background: var(--color-accent);
+  color: white;
+}
+
+.source-mode-btn:hover:not(.active) {
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+}
+
+/* Drag-and-drop / click-to-browse upload zone */
+.upload-zone {
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 36px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+}
+
+.upload-zone:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-light);
+}
+
+.upload-zone.drag-over {
+  border-color: var(--color-accent);
+  background: var(--color-accent-light);
+}
+
+.upload-zone.has-file {
+  border-color: var(--color-success);
+  background: #f0fdf4;
+  cursor: default;
+}
+
+.upload-zone-icon {
+  display: block;
+  font-size: 32px;
+  margin-bottom: 10px;
+}
+
+.upload-zone-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin-bottom: 4px;
+}
+
+.upload-zone-hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.upload-zone-file-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.upload-zone-filename {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-success);
+}
+
+.upload-zone-filesize {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.upload-zone-change {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--color-accent);
+  background: none;
+  border: none;
+  font-family: var(--font-sans);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ===================================================================
    SETTINGS PAGE
    =================================================================== */
 .settings-page {
