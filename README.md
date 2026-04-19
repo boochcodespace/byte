@@ -73,11 +73,12 @@ Your key is stored in `~/Byte/settings.json` on your local machine. It is **neve
 
 ## Using Byte End-to-End
 
-1. **Add a source** — on the Dashboard, click **+ Add new source**, give it a title, and paste your source material (SME notes, transcript, technical doc, etc.)
-2. **Open the source** — click on its card in the dashboard grid
-3. **Set learner context** — in the right sidebar, fill in the learner's role, experience level, and use case. More context = better artifacts.
-4. **Generate an artifact** — click **✨ Generate** with "Flip Card Deck" selected
-5. **Interact with the cards** — click any card to flip it, use **← →** arrow keys to navigate, **Space** to flip
+1. **Create a project** — on the Projects page, click **+ New project**. Give it a title, and optionally a description, target audience, and style guide. Style guide and target audience are inherited by every artifact you generate within the project.
+2. **Add a source** — open the project, click **+ Add source**, then either paste text or upload a file (PDF, PPTX, DOCX, MD, TXT — max 25 MB)
+3. **Open the source** — click on its card in the project's source grid
+4. **Set learner context** — in the right sidebar, fill in the learner's role, experience level, and use case. Combined with the project's style guide and audience, this is what tailors each artifact.
+5. **Generate an artifact** — click **✨ Generate** with "Flip Card Deck" selected
+6. **Interact with the cards** — click any card to flip it, use **← →** arrow keys to navigate, **Space** to flip
 
 ## Where Your Data Lives
 
@@ -85,15 +86,23 @@ All user content is stored in `~/Byte/` on your machine (your home folder, outsi
 
 ```
 ~/Byte/
-├── settings.json                          ← your Anthropic API key
-└── sources/
-    └── <source-slug>/
-        ├── source.md                      ← your source content
-        ├── context.json                   ← learner context (role, experience, use case)
-        └── artifacts/
-            └── flip-cards-<timestamp>/
-                └── artifact.json          ← generated artifact data
+├── settings.json                                  ← your Anthropic API key
+└── projects/
+    └── <project-slug>/
+        ├── project.json                           ← project metadata + style guide + target audience
+        └── sources/
+            └── <source-slug>/
+                ├── source.md                      ← extracted/pasted text
+                ├── source-original.<ext>          ← original uploaded file (upload flow only)
+                ├── context.json                   ← learner context (role, experience, use case)
+                ├── media/
+                │   └── manifest.json              ← extracted images manifest
+                └── artifacts/
+                    └── flip-cards-<timestamp>/
+                        └── artifact.json          ← generated artifact data
 ```
+
+If you used an earlier version of Byte (with a flat `~/Byte/sources/` folder), Byte will migrate your existing sources into a `Default Project` automatically the first time the new server starts. The original folder is preserved as `~/Byte/sources.backup-<timestamp>/`.
 
 Nothing in `~/Byte/` is ever committed to this repository.
 

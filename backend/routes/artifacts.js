@@ -1,29 +1,23 @@
-// routes/artifacts.js — the Claude API generation pipeline
+// routes/artifacts.js — Claude API generation pipeline (project-scoped)
 //
-// Flow:
-//   1. Validate inputs
-//   2. Load API key from ~/Byte/settings.json
-//   3. Load source content + learner context from ~/Byte/sources/<slug>/
-//   4. Build the prompt for the requested artifact type
-//   5. Call the Claude API
-//   6. Parse Claude's JSON response
-//   7. Save artifact to ~/Byte/sources/<slug>/artifacts/flip-cards-<timestamp>/
-//   8. Return artifact JSON to the frontend
+// Mounted as a nested router under sources:
+//   POST /api/projects/:projectSlug/sources/:sourceSlug/artifacts/generate
+//
+// mergeParams: true lets req.params carry both :projectSlug and :sourceSlug
+// from the parent routers into this handler.
 
 const express = require('express')
-const router = express.Router()
+const router = express.Router({ mergeParams: true })
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const Anthropic = require('@anthropic-ai/sdk')
 
-const SOURCES_DIR = path.join(os.homedir(), 'Byte', 'sources')
+const PROJECTS_DIR = path.join(os.homedir(), 'Byte', 'projects')
 const SETTINGS_FILE = path.join(os.homedir(), 'Byte', 'settings.json')
 
 // ─────────────────────────────────────────────────────────────────
 // SYSTEM PROMPT
-// Hardcoded into every Claude API call.  This encodes Byte's
-// non-negotiable 2026 Modern Learning Design Principles.
 // ─────────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are the generative engine inside Byte, a tool for instructional
 designers that creates bite-sized tapas-style learning artifacts from
@@ -57,6 +51,13 @@ You will be given a learner role, experience level, and use-case urgency.
 Tailor every artifact to that specific context. Use their language, their
 daily friction points, and their real scenarios.
 
+PROJECT STYLE GUIDE AND AUDIENCE
+Each source belongs to a project. The project may define a house style guide
+and a target audience. When present, these take precedence over generic
+defaults: match the tone, terminology, and complexity level specified. If
+they conflict with learner context, prefer specificity — address both where
+possible.
+
 GAMIFICATION WHERE APPLICABLE
 When the artifact type supports it, include a gamification mechanic:
 points, badges tied to demonstrated behavior, timed pressure, streaks,
@@ -83,10 +84,15 @@ artifact type. No preamble, no markdown fences, no commentary.`
 
 // ─────────────────────────────────────────────────────────────────
 // PROMPT BUILDER — Flip Card Deck
-// Substitutes learner context and source content into the template.
 // ─────────────────────────────────────────────────────────────────
-function buildFlipCardPrompt(sourceContent, context) {
+function buildFlipCardPrompt(sourceContent, context, project) {
   return `Generate a flip card deck from the following source content.
+
+PROJECT STYLE GUIDE:
+${project.styleGuide || 'None specified.'}
+
+PROJECT TARGET AUDIENCE:
+${project.targetAudience || 'None specified.'}
 
 LEARNER CONTEXT:
 - Role: ${context.role || 'Not specified'}
@@ -125,23 +131,21 @@ Respond in this JSON schema:
 }
 
 // ─────────────────────────────────────────────────────────────────
-// POST /api/artifacts/generate
+// POST .../artifacts/generate
 // ─────────────────────────────────────────────────────────────────
 router.post('/generate', async (req, res) => {
-  const { slug, artifactType } = req.body
+  const { projectSlug, sourceSlug } = req.params
+  const { artifactType } = req.body
 
-  // ── Step 1: Validate inputs ──────────────────────────────────
-  if (!slug || !artifactType) {
-    return res.status(400).json({ error: 'slug and artifactType are required' })
+  if (!artifactType) {
+    return res.status(400).json({ error: 'artifactType is required' })
   }
   if (artifactType !== 'flip-card-deck') {
     return res.status(400).json({
-      error: `Artifact type "${artifactType}" is not supported in Phase 1.`
+      error: `Artifact type "${artifactType}" is not supported in this version.`
     })
   }
 
-  // ── Step 2: Load the API key ─────────────────────────────────
-  // The key lives in ~/Byte/settings.json, never in this repo.
   if (!fs.existsSync(SETTINGS_FILE)) {
     return res.status(400).json({
       error: 'No API key found. Go to Settings and paste your Anthropic API key.'
@@ -154,39 +158,35 @@ router.post('/generate', async (req, res) => {
     })
   }
 
-  // ── Step 3: Load source content + learner context ────────────
-  const sourceDir = path.join(SOURCES_DIR, slug)
+  const sourceDir = path.join(PROJECTS_DIR, projectSlug, 'sources', sourceSlug)
   if (!fs.existsSync(sourceDir)) {
     return res.status(404).json({ error: 'Source not found' })
   }
 
   const mdPath = path.join(sourceDir, 'source.md')
-  const sourceContent = fs.existsSync(mdPath)
-    ? fs.readFileSync(mdPath, 'utf-8')
-    : ''
+  const sourceContent = fs.existsSync(mdPath) ? fs.readFileSync(mdPath, 'utf-8') : ''
 
   const ctxPath = path.join(sourceDir, 'context.json')
   const context = fs.existsSync(ctxPath)
     ? JSON.parse(fs.readFileSync(ctxPath, 'utf-8'))
     : {}
 
-  // ── Step 4: Build the prompt ─────────────────────────────────
-  const userPrompt = buildFlipCardPrompt(sourceContent, context)
+  const projectPath = path.join(PROJECTS_DIR, projectSlug, 'project.json')
+  const project = fs.existsSync(projectPath)
+    ? JSON.parse(fs.readFileSync(projectPath, 'utf-8'))
+    : {}
 
-  // ── Step 5: Call the Claude API ──────────────────────────────
-  // Anthropic SDK: pass apiKey in the constructor.
-  // messages.create() sends the prompt and waits for the full response.
+  const userPrompt = buildFlipCardPrompt(sourceContent, context, project)
+
   const anthropic = new Anthropic({ apiKey })
 
   let claudeResponse
   try {
     claudeResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',   // change to claude-opus-4-7 for higher quality
+      model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       system: SYSTEM_PROMPT,
-      messages: [
-        { role: 'user', content: userPrompt }
-      ]
+      messages: [{ role: 'user', content: userPrompt }]
     })
   } catch (apiError) {
     console.error('Claude API error:', apiError)
@@ -195,10 +195,6 @@ router.post('/generate', async (req, res) => {
     })
   }
 
-  // ── Step 6: Parse Claude's JSON response ─────────────────────
-  // Claude returns the generated text in claudeResponse.content[0].text.
-  // We instructed it to return only valid JSON, but strip any accidental
-  // markdown fences just in case.
   const rawText = claudeResponse.content[0].text
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')
@@ -208,27 +204,20 @@ router.post('/generate', async (req, res) => {
   let artifact
   try {
     artifact = JSON.parse(rawText)
-  } catch (parseError) {
+  } catch {
     console.error('Failed to parse Claude response as JSON:', rawText)
     return res.status(500).json({
       error: 'Claude returned a response that could not be parsed as JSON. Please try again.',
-      raw: rawText.slice(0, 500)   // include a snippet for debugging
+      raw: rawText.slice(0, 500)
     })
   }
 
-  // ── Step 7: Save the artifact to disk ────────────────────────
-  // Path: ~/Byte/sources/<slug>/artifacts/flip-cards-<timestamp>/artifact.json
   const timestamp = Date.now()
   const folderName = `flip-cards-${timestamp}`
   const artifactDir = path.join(sourceDir, 'artifacts', folderName)
   fs.mkdirSync(artifactDir, { recursive: true })
-  fs.writeFileSync(
-    path.join(artifactDir, 'artifact.json'),
-    JSON.stringify(artifact, null, 2)
-  )
+  fs.writeFileSync(path.join(artifactDir, 'artifact.json'), JSON.stringify(artifact, null, 2))
 
-  // ── Step 8: Return the artifact to the frontend ──────────────
-  // Include folderName so the frontend can reference it in the artifact list.
   res.json({ folder: folderName, ...artifact })
 })
 

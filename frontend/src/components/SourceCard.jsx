@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
 
-// SourceCard renders one source in the dashboard grid.
-// Clicking it navigates to the source detail page at /source/<slug>.
-function SourceCard({ source }) {
+// SourceCard renders one source in the project detail grid.
+// Clicking it navigates to /projects/<projectSlug>/sources/<sourceSlug>.
+function SourceCard({ source, projectSlug }) {
   return (
-    <Link to={`/source/${source.slug}`} className="source-card">
+    <Link to={`/projects/${projectSlug}/sources/${source.slug}`} className="source-card">
       <div className="source-card-icon">📄</div>
       <div className="source-card-body">
         <h3>{source.title}</h3>

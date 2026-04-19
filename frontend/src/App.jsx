@@ -1,7 +1,9 @@
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
-import Dashboard from './pages/Dashboard'
-import Settings from './pages/Settings'
+import ProjectsPage from './pages/ProjectsPage'
+import ProjectDetail from './pages/ProjectDetail'
+import AddSource from './pages/AddSource'
 import SourceDetail from './pages/SourceDetail'
+import Settings from './pages/Settings'
 
 // App is the top-level shell: persistent header + page routing.
 // Routes maps URL paths to page components.
@@ -24,9 +26,11 @@ function App() {
 
       <main className="app-main">
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<ProjectsPage />} />
+          <Route path="/projects/:projectSlug" element={<ProjectDetail />} />
+          <Route path="/projects/:projectSlug/sources/new" element={<AddSource />} />
+          <Route path="/projects/:projectSlug/sources/:slug" element={<SourceDetail />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/source/:slug" element={<SourceDetail />} />
         </Routes>
       </main>
     </div>
