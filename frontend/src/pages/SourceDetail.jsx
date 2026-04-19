@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import FlipCardDeck from '../components/FlipCardDeck'
 
-// SourceDetail: the full page for one source.
+// SourceDetail: the full page for one source within a project.
 // Left column: editable source text + artifact list + artifact preview.
 // Right column (sidebar): learner context fields + generate button.
 function SourceDetail() {
-  const { slug } = useParams()   // slug comes from the URL: /source/<slug>
+  const { projectSlug, slug } = useParams()
+  const sourceUrl = `/api/projects/${projectSlug}/sources/${slug}`
 
   const [source, setSource] = useState(null)
   const [content, setContent] = useState('')
@@ -25,14 +26,13 @@ function SourceDetail() {
 
   // Load source on mount
   useEffect(() => {
-    fetch(`/api/sources/${slug}`)
+    fetch(sourceUrl)
       .then(r => r.json())
       .then(data => {
         if (data.error) throw new Error(data.error)
         setSource(data)
         setContent(data.content || '')
         setContext(data.context || { role: '', experience: '', useCase: '' })
-        // Auto-select the most recent artifact if one exists
         if (data.artifacts?.length > 0) {
           setSelectedArtifact(data.artifacts[0])
         }
@@ -42,14 +42,13 @@ function SourceDetail() {
         setPageError(err.message || 'Could not load source.')
         setLoading(false)
       })
-  }, [slug])
+  }, [sourceUrl])
 
-  // Save content + context back to the backend
   const handleSave = async () => {
     setSaving(true)
     setSaveLabel('Saving...')
     try {
-      await fetch(`/api/sources/${slug}`, {
+      await fetch(sourceUrl, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content, context })
@@ -70,24 +69,23 @@ function SourceDetail() {
     setGenError(null)
 
     // Persist any unsaved edits first so the backend reads the latest text
-    await fetch(`/api/sources/${slug}`, {
+    await fetch(sourceUrl, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content, context })
     }).catch(() => {})
 
     try {
-      const res = await fetch('/api/artifacts/generate', {
+      const res = await fetch(`${sourceUrl}/artifacts/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, artifactType })
+        body: JSON.stringify({ artifactType })
       })
       const data = await res.json()
 
       if (data.error) {
         setGenError(data.error)
       } else {
-        // Prepend new artifact and open it automatically
         setSource(prev => ({
           ...prev,
           artifacts: [data, ...(prev.artifacts || [])]
@@ -106,17 +104,18 @@ function SourceDetail() {
 
   return (
     <div className="source-detail">
-      <div className="source-detail-nav">
-        <Link to="/" className="back-link">← Back to sources</Link>
-      </div>
+      <nav className="breadcrumb">
+        <Link to="/">Projects</Link>
+        <span className="breadcrumb-sep">›</span>
+        <Link to={`/projects/${projectSlug}`}>{projectSlug}</Link>
+        <span className="breadcrumb-sep">›</span>
+        <span>{source.title}</span>
+      </nav>
 
       <h1>{source.title}</h1>
 
       <div className="source-detail-layout">
-        {/* ── Left column ── */}
         <div className="source-main">
-
-          {/* Editable source content */}
           <div className="card">
             <div className="card-header">
               <h2>Source content</h2>
@@ -136,7 +135,6 @@ function SourceDetail() {
             />
           </div>
 
-          {/* List of previously generated artifacts */}
           {source.artifacts?.length > 0 && (
             <div className="artifacts-section card">
               <h2 style={{ marginBottom: '12px' }}>Generated artifacts</h2>
@@ -158,7 +156,6 @@ function SourceDetail() {
             </div>
           )}
 
-          {/* Inline artifact preview */}
           {selectedArtifact && (
             <div className="card artifact-preview">
               <FlipCardDeck artifact={selectedArtifact} />
@@ -166,10 +163,7 @@ function SourceDetail() {
           )}
         </div>
 
-        {/* ── Right sidebar ── */}
         <div className="source-sidebar">
-
-          {/* Learner context */}
           <div className="card">
             <h2>Learner context</h2>
             <p className="sidebar-help">
@@ -212,7 +206,6 @@ function SourceDetail() {
             </div>
           </div>
 
-          {/* Generate button */}
           <div className="card generate-card">
             <h2>Generate artifact</h2>
 
@@ -240,9 +233,7 @@ function SourceDetail() {
               </p>
             )}
 
-            {genError && (
-              <div className="status-message error">{genError}</div>
-            )}
+            {genError && <div className="status-message error">{genError}</div>}
           </div>
         </div>
       </div>
