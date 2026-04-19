@@ -17,6 +17,7 @@ const multer = require('multer')
 const artifactsRouter = require('./artifacts')
 const { parseDocx } = require('../lib/parsers/docx')
 const { parsePdf, probePdf } = require('../lib/parsers/pdf')
+const { parsePptx } = require('../lib/parsers/pptx')
 const { UserFacingError } = require('../lib/parsers/errors')
 
 const PROJECTS_DIR = path.join(os.homedir(), 'Byte', 'projects')
@@ -137,8 +138,9 @@ async function parseSourceFile(buffer, ext, title, originalName) {
         return await parseDocx(buffer, title, originalName)
       case '.pdf':
         return await parsePdf(buffer, title, originalName)
+      case '.pptx':
+        return await parsePptx(buffer, title, originalName)
       default:
-        // .pptx — real parser lands in Step 6.
         return {
           markdown: placeholderMarkdown(title, originalName, ext),
           mediaFiles: [],
