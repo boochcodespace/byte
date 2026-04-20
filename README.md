@@ -1,4 +1,4 @@
-# Byte
+# byte
 
 **A locally-running learning content studio for instructional designers.**
 
