@@ -2,7 +2,7 @@
 
 **A locally-running learning content studio for instructional designers.**
 
-Bring your source material — SME notes, existing courses, technical docs, transcripts — and Byte's AI engine transforms it into bite-sized, tapas-style learning artifacts: flip card decks, scenarios, cheat sheets, mini games, knowledge checks, job aids, and more.
+Bring your source material — SME notes, existing courses, technical docs, transcripts — and byte's AI engine transforms it into bite-sized, tapas-style learning artifacts: flip card decks, scenarios, cheat sheets, mini games, knowledge checks, job aids, and more.
 
 Each artifact is a standalone learning moment designed to take under 10 minutes and fit naturally into a learner's flow of work. Byte is powered by the Claude API and runs entirely on your machine. Your content and API key never leave your computer except for the API call to Anthropic.
 
