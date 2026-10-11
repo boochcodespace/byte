@@ -264,6 +264,8 @@ schema for the requested type. Never mix structures between types.
 
 Currently supported artifact types:
   flip-card-deck: bite-sized card deck with front-back reveals
+  scenario-branching: short decision tree where the learner commits to
+    a choice, then sees the consequence
 
 All artifact types share these principles. Type-specific rules
 supplement these shared rules, never replace them.

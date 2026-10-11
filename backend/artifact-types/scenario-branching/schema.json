@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ScenarioBranchingArtifact",
+  "type": "object",
+  "required": ["learning_objective", "setup", "start_node", "nodes", "apply_today"],
+  "additionalProperties": true,
+  "properties": {
+    "learning_objective": { "type": "string", "minLength": 1 },
+    "estimated_minutes": { "type": "number" },
+    "setup": { "type": "string", "minLength": 1 },
+    "visual_anchor_description": { "type": "string" },
+    "start_node": { "type": "string", "minLength": 1 },
+    "apply_today": { "type": "string", "minLength": 1 },
+    "spaced_repetition_notes": { "type": "string" },
+    "nodes": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "situation"],
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "enum": ["decision", "ending"] },
+          "situation": { "type": "string", "minLength": 1 },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["text", "feedback", "next", "quality"],
+              "additionalProperties": true,
+              "properties": {
+                "text": { "type": "string", "minLength": 1 },
+                "feedback": { "type": "string", "minLength": 1 },
+                "next": { "type": ["string", "null"] },
+                "quality": { "type": "string", "enum": ["best", "acceptable", "weak"] }
+              }
+            }
+          }
+        },
+        "if": { "properties": { "kind": { "const": "decision" } }, "required": ["kind"] },
+        "then": { "required": ["choices"], "properties": { "choices": { "minItems": 2 } } }
+      }
+    }
+  }
+}

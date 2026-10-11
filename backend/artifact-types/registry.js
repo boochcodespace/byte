@@ -15,9 +15,11 @@
 // That is the entire surface area for adding a type.
 
 const flipCardDeck = require('./flip-card-deck')
+const scenarioBranching = require('./scenario-branching')
 
 const TYPES = {
   [flipCardDeck.type]: flipCardDeck,
+  [scenarioBranching.type]: scenarioBranching,
 }
 
 function getTypeModule(typeKey) {
