@@ -14,12 +14,11 @@
 
 const fs = require('fs')
 const path = require('path')
-const Anthropic = require('@anthropic-ai/sdk')
 const Ajv = require('ajv')
 const { SYSTEM_PROMPT } = require('./system-prompt')
 const { ERROR_TYPES } = require('../../lib/error-types')
+const llm = require('../../lib/llm')
 
-const DEFAULT_MODEL = 'claude-sonnet-4-6'
 const DEFAULT_MAX_TOKENS = 4096
 
 // Compile schemas once per process. Keyed by type so a shared validator
@@ -80,27 +79,28 @@ class ClaudeJsonParseError extends Error {
 //   promptContext   — struct built by buildPromptContext()
 //   extras          — type-specific prompt inputs (e.g. knowledge-check format)
 //   sourceDir       — absolute path to the source on disk (for saving)
-//   apiKey          — Anthropic API key
-//   modelOverrides  — { model?, maxTokens? } to override per-call
+//   llmConfig       — resolved provider config (see lib/llm/config.js):
+//                     which adapter, key, model, and base URL to use
+//   modelOverrides  — { maxTokens? } to override per-call. Model choice
+//                     is the user's (Settings), not the artifact type's,
+//                     because model names differ between providers.
 async function runGeneration({
   typeModule,
   promptContext,
   extras = {},
   sourceDir,
-  apiKey,
+  llmConfig,
   modelOverrides = {},
 }) {
   const userPrompt = typeModule.promptTemplate(promptContext, extras)
 
-  const anthropic = new Anthropic({ apiKey })
-  const response = await anthropic.messages.create({
-    model: modelOverrides.model || DEFAULT_MODEL,
-    max_tokens: modelOverrides.maxTokens || DEFAULT_MAX_TOKENS,
+  const text = await llm.complete(llmConfig, {
     system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userPrompt }],
+    user: userPrompt,
+    maxTokens: modelOverrides.maxTokens || DEFAULT_MAX_TOKENS,
   })
 
-  const rawText = stripFences(response.content[0].text)
+  const rawText = stripFences(text)
 
   let parsed
   try {

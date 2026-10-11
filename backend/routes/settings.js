@@ -1,42 +1,37 @@
 // routes/settings.js — read and write ~/Byte/settings.json
 // The settings file lives OUTSIDE the repo in the user's home folder,
 // so the API key is never accidentally committed to Git.
+//
+// Settings hold the user's AI provider choice: { provider, apiKey,
+// model, baseUrl }. The provider list and defaults come from
+// lib/llm/config.js, so the Settings page never hard-codes them.
 
 const express = require('express')
 const router = express.Router()
-const fs = require('fs')
-const path = require('path')
-const os = require('os')
 const { ERROR_TYPES, sendOk, sendError, mapSdkError } = require('../lib/error-types')
-
-// os.homedir() is the user's home folder: /Users/yourname on Mac, /home/yourname on Linux
-const BYTE_DIR = path.join(os.homedir(), 'Byte')
-const SETTINGS_FILE = path.join(BYTE_DIR, 'settings.json')
-
-// Create ~/Byte/ if it doesn't exist yet
-function ensureByteDir() {
-  if (!fs.existsSync(BYTE_DIR)) {
-    fs.mkdirSync(BYTE_DIR, { recursive: true })
-  }
-}
+const {
+  PROVIDERS,
+  listProviders,
+  readSettings,
+  writeSettings,
+  withPreset,
+} = require('../lib/llm/config')
 
 // GET /api/settings
-// Returns whether a key is saved and a masked preview (last 4 chars only).
-// We never send the full key back to the frontend — it stays on disk only.
+// Returns the saved provider choice, whether a key is saved, and a
+// masked preview (last 4 chars only). We never send the full key back
+// to the frontend — it stays on disk only.
 router.get('/', (req, res) => {
   try {
-    ensureByteDir()
-
-    if (!fs.existsSync(SETTINGS_FILE)) {
-      return sendOk(res, { hasApiKey: false, apiKeyPreview: '' })
-    }
-
-    const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'))
+    const saved = readSettings()
+    const current = withPreset(saved)
     return sendOk(res, {
-      hasApiKey: !!settings.apiKey,
-      apiKeyPreview: settings.apiKey
-        ? '••••••••' + settings.apiKey.slice(-4)
-        : '',
+      provider: current.provider,
+      model: saved.model || '',
+      baseUrl: saved.baseUrl || '',
+      hasApiKey: !!saved.apiKey,
+      apiKeyPreview: saved.apiKey ? '••••••••' + saved.apiKey.slice(-4) : '',
+      providers: listProviders(),
     })
   } catch (err) {
     const { errorType, debug } = mapSdkError(err)
@@ -46,20 +41,44 @@ router.get('/', (req, res) => {
 })
 
 // POST /api/settings
-// Accepts { apiKey: "sk-ant-..." } and writes it to ~/Byte/settings.json.
+// Accepts { provider, apiKey?, model?, baseUrl? } and saves it.
+// A blank apiKey keeps the saved one, but only when the provider is
+// unchanged: a key for one provider must never be sent to another.
 router.post('/', (req, res) => {
   try {
-    const { apiKey } = req.body
-    if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim()) {
+    const body = req.body || {}
+    const provider = body.provider || 'anthropic'
+    const preset = PROVIDERS[provider]
+    if (!preset) {
+      return sendError(res, ERROR_TYPES.VALIDATION, { userMessage: 'Choose a supported AI provider.' })
+    }
+
+    const saved = readSettings()
+    const savedProvider = withPreset(saved).provider
+    const typedKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : ''
+    const apiKey = typedKey || (provider === savedProvider ? saved.apiKey || '' : '')
+
+    if (preset.requiresKey && !apiKey) {
       return sendError(res, ERROR_TYPES.VALIDATION, { userMessage: 'API key is required.' })
     }
 
-    ensureByteDir()
-    fs.writeFileSync(
-      SETTINGS_FILE,
-      JSON.stringify({ apiKey: apiKey.trim() }, null, 2)
-    )
+    const model = typeof body.model === 'string' ? body.model.trim() : ''
+    if (!model && !preset.defaultModel) {
+      return sendError(res, ERROR_TYPES.VALIDATION, {
+        userMessage: 'Enter the name of the model to use.',
+      })
+    }
 
+    const baseUrl = preset.baseUrlEditable
+      ? (typeof body.baseUrl === 'string' ? body.baseUrl.trim() : '') || preset.baseUrl
+      : ''
+    if (preset.baseUrlEditable && !baseUrl) {
+      return sendError(res, ERROR_TYPES.VALIDATION, {
+        userMessage: 'Enter the base URL of your provider.',
+      })
+    }
+
+    writeSettings({ provider, apiKey, model, baseUrl })
     return sendOk(res, { success: true })
   } catch (err) {
     const { errorType, debug } = mapSdkError(err)

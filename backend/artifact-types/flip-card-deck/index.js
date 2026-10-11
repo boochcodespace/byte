@@ -10,7 +10,7 @@
 //                  shared prompt context struct.
 //   schema       — JSON Schema object Claude's response is validated
 //                  against before the artifact is persisted.
-//   generate({ promptContext, extras, sourceDir, apiKey })
+//   generate({ promptContext, extras, sourceDir, llmConfig })
 //                  Thin wrapper around shared runGeneration; exists
 //                  per-type so future types can override model /
 //                  token budget without touching shared code.

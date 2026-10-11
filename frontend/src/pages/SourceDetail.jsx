@@ -331,7 +331,7 @@ function SourceDetail() {
             {generateAction.loading && (
               <LoadingState
                 subtle
-                message="Calling Claude..."
+                message="Calling your AI model..."
                 hint="This may take up to 30 seconds."
               />
             )}
