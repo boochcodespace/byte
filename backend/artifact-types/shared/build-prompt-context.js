@@ -62,11 +62,30 @@ function renderSteeringBlock(project, perGenerationPrompt) {
   ].join('\n')
 }
 
+// Experience level is Novice / Practicing / Expert. Sources saved before
+// this rename hold the old four-level values; map them so existing
+// sources keep working without a data migration.
+const LEGACY_EXPERIENCE = {
+  beginner: 'Novice',
+  intermediate: 'Practicing',
+  advanced: 'Practicing',
+}
+
+function normalizeExperience(value) {
+  const key = (value || '').trim().toLowerCase()
+  if (!key) return 'not specified'
+  if (LEGACY_EXPERIENCE[key]) return LEGACY_EXPERIENCE[key]
+  if (['novice', 'practicing', 'expert'].includes(key)) {
+    return key.charAt(0).toUpperCase() + key.slice(1)
+  }
+  return 'not specified'
+}
+
 function renderLearnerContextBlock(context) {
   return [
     `═══ LEARNER CONTEXT ═══`,
     `Role: ${context.role || 'not specified'}`,
-    `Experience level: ${context.experience || 'not specified'}`,
+    `Experience level: ${normalizeExperience(context.experience)}`,
     `Use case: ${context.useCase || 'not specified'}`,
   ].join('\n')
 }

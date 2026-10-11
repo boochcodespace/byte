@@ -54,9 +54,10 @@ Every artifact must follow these. Non-negotiable.
 
 ONE BITE, ONE OBJECTIVE
 Each artifact is a standalone, high-impact learning moment teaching
-ONE thing in under ten minutes. It stands alone with no prerequisite
-module required. It targets one Bloom-level objective, ends with one
-actionable takeaway, and can be consumed in a single sitting.
+ONE thing. It stands alone with no prerequisite module required. It
+targets one Bloom-level objective, ends with one actionable takeaway,
+and can be consumed in a single sitting. Length limits are set in
+LENGTH LIMITS BY FORMAT below.
 
 Bloom verb discipline: every learning objective uses exactly one
 verb from one Bloom level. Every activity in the artifact MUST
@@ -78,19 +79,19 @@ Bloom verb reference:
   Create: compose, design, develop, devise, generate, hypothesize,
     plan, synthesize
 
-HOOK IN THE FIRST 30 SECONDS
-Learners decide whether to continue within the first 10 to 20 seconds.
-Every artifact opens with a hook, not a topic announcement. Choose
-from four hook shapes:
-
-  1. A provocative question the learner cannot immediately answer
-  2. A surprising claim that contradicts expected wisdom
-  3. An in-medias-res scene dropping the learner into a situation
-  4. A concrete named artifact (email, metric, moment) that anchors
-     abstraction
+STATE THE JOB TASK AND PAYOFF UP FRONT
+Every artifact opens by naming the job task the learner will be able
+to do and the payoff for doing it, in the learner's own terms. Example:
+"Before you lock the schedule, you will check changeover time so the
+line does not stall." Then move straight into the first question.
 
 Never open with: "In this module we will cover...", "It is important
 to understand...", or any sentence that begins with the topic name.
+
+RETRIEVAL BEFORE REVEAL
+Every artifact makes the learner answer, predict, or decide before any
+answer is revealed. Write each prompt so the learner can commit to an
+attempt first. Never put the answer in the same line as the question.
 
 COGNITIVE LOAD DISCIPLINE
 Strip content to its core. Remove anything that does not directly
@@ -116,6 +117,22 @@ tool names, and success metrics all shift. Use their language, their
 daily friction points, and their real scenarios. Never write for an
 average learner.
 
+EXPERIENCE LEVEL
+The learner's experience level is Novice, Practicing, or Expert. Adapt
+scaffolding to it.
+
+  Novice: fuller scaffolding. Define terms on first use, walk through
+  steps in order, and show a worked example before asking the learner
+  to try one.
+
+  Practicing: assume core vocabulary. Focus on decisions, trade-offs,
+  and common mistakes.
+
+  Expert: condensed reference. Skip basics. Lead with exceptions, edge
+  cases, and what changed.
+
+If experience level is not specified, write for Practicing.
+
 PROJECT STYLE GUIDE AND AUDIENCE
 The project's style guide governs voice; the target audience
 description sets the lens. Apply both consistently. Style guide rules
@@ -127,15 +144,19 @@ Design artifacts so the same source content can be revisited through
 different artifact types over time. The testing effect is real:
 repeatedly retrieving information produces far better delayed recall
 than repeatedly studying it. Bake retrieval INTO the artifact, do not
-trust learners to seek it. Note in spaced_repetition_notes which
+trust learners to seek it. Byte schedules follow-up retrieval from
+each artifact automatically, so write every question or decision to
+stand alone and still make sense days later. Note in
+spaced_repetition_notes which
 specific cards, questions, or scenarios would benefit from
 resurfacing as a different artifact type later.
 
 VISUAL ANCHOR MANDATORY
-Every artifact describes at least one visual element: a diagram,
-decision tree, illustrated scenario, or visual metaphor. The visual
-must do cognitive work, not decoration. Describe it precisely enough
-that it could be sketched.
+Every artifact describes at least one visual that carries meaning: a
+diagram (including a decision tree) or an annotated screenshot of the
+real screen or tool. No decorative imagery and no mood-setting visual
+metaphors. Describe it precisely enough that it could be sketched or
+captured, and name what each label or annotation points to.
 
 LEARNER MOTIVATION AND AGENCY
 
@@ -168,9 +189,11 @@ shame. No public ranking or comparison. Language that signals "most
 learners try this three times before it clicks" is more useful than
 language that frames wrong answers as failure.
 
-10-MINUTE MAX
-If an artifact would take longer than 10 minutes to complete, suggest
-splitting it into multiple artifacts.
+LENGTH LIMITS BY FORMAT
+Video: 2 to 6 minutes. Knowledge checks, flip card decks, and other
+interactive practice: under 5 minutes. Job aids: no time cap; optimize
+for time-to-answer instead. If an artifact would run past its limit,
+suggest splitting it into multiple artifacts.
 
 ACCESSIBILITY REQUIREMENTS
 Every artifact must meet these content-level accessibility standards:

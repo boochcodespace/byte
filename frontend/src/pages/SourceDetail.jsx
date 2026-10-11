@@ -7,6 +7,25 @@ import { actionPropsFor } from '../lib/errorActions'
 import LoadingState from '../components/LoadingState'
 import ErrorState from '../components/ErrorState'
 
+// Experience level is Novice / Practicing / Expert. Sources saved before
+// the rename hold the old four-level values; map them for display so
+// the select does not show blank. Mirrors the backend mapping in
+// build-prompt-context.js.
+const LEGACY_EXPERIENCE = {
+  beginner: 'Novice',
+  intermediate: 'Practicing',
+  advanced: 'Practicing',
+}
+
+function normalizeExperience(value) {
+  const key = (value || '').trim().toLowerCase()
+  if (LEGACY_EXPERIENCE[key]) return LEGACY_EXPERIENCE[key]
+  if (['novice', 'practicing', 'expert'].includes(key)) {
+    return key.charAt(0).toUpperCase() + key.slice(1)
+  }
+  return ''
+}
+
 // SourceDetail: the full page for one source within a project.
 // Left column: editable source text + artifact list + artifact preview.
 // Right column (sidebar): learner context fields + generate controls.
@@ -45,7 +64,7 @@ function SourceDetail() {
     setContent(data.content || '')
     setContext({
       role: data.context?.role || '',
-      experience: data.context?.experience || '',
+      experience: normalizeExperience(data.context?.experience),
       useCase: data.context?.useCase || '',
       learningObjectives: data.context?.learningObjectives || ''
     })
@@ -217,9 +236,8 @@ function SourceDetail() {
                 onChange={e => setContext(c => ({ ...c, experience: e.target.value }))}
               >
                 <option value="">Select level...</option>
-                <option value="Beginner">Beginner</option>
-                <option value="Intermediate">Intermediate</option>
-                <option value="Advanced">Advanced</option>
+                <option value="Novice">Novice</option>
+                <option value="Practicing">Practicing</option>
                 <option value="Expert">Expert</option>
               </select>
             </div>
