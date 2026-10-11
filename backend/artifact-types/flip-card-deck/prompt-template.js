@@ -30,19 +30,24 @@ DECK SIZING
 - 4 to 6 cards when source is thin (do not pad)
 - One learning objective for the full deck, stated at the top
 - Every card is atomic: one fact, one decision point, one insight
+- Total completion time under 5 minutes
 
 CARD CONSTRUCTION
 - Front: a question, key term, or decision point (maximum 20 words)
 - Back: the answer or insight, stripped to its core (maximum \
 25 words, one sentence)
 - Never compound questions on the front
+- Every front makes the learner answer, predict, or decide before the \
+back is revealed
+- Every card makes sense on its own days later, with no reference to \
+other cards
 - Reject any card whose front could be answered without actually \
 engaging with the source content
 
 CARD TYPES
-- One HOOK card opens the deck: a decision, stat, or challenge \
-grounded in the source that pulls the learner in before they know \
-the answer
+- One HOOK card opens the deck: the front names the job task and the \
+payoff in the learner's terms, then poses a decision or prediction \
+grounded in the source for the learner to attempt before the reveal
 - CONTENT cards form the body: each covering one atomic concept from \
 the source
 - One APPLY card closes the deck: a specific action the learner can \
@@ -83,8 +88,9 @@ Respond in this JSON schema:
 {
   "learning_objective": "string (states one Bloom-verb objective)",
   "estimated_minutes": number,
-  "visual_anchor_description": "string (describe one diagram, chart, \
-or visual metaphor that would anchor this deck)",
+  "visual_anchor_description": "string (describe one diagram or \
+annotated screenshot that carries meaning for this deck; no decorative \
+imagery)",
   "cards": [
     {
       "type": "hook | content | apply",
