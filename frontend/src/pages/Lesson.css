@@ -350,7 +350,8 @@
 
 /* ── artifact picker ─────────────────────────────────────────────── */
 
-.artifact-picker {
+.artifact-picker,
+.context-panel {
   margin-top: 14px;
   padding: 12px 14px;
   border: 1px solid var(--color-border);
@@ -454,4 +455,18 @@
 .lesson-row-over {
   color: #b45309;
   font-weight: 700;
+}
+
+/* ── context panel: full-width fields so text is readable and typeable ── */
+
+.context-panel label {
+  display: block;
+}
+
+.context-panel input[type="text"],
+.context-panel select,
+.context-panel textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
 }

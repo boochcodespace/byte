@@ -38,11 +38,49 @@ const BLUEPRINT_MAX_TOKENS = 3000
 const TEXT_MAX_TOKENS = 6500
 
 // In-lesson artifact sizes. Standalone defaults are larger; these keep a
-// lesson with a few artifacts inside its time budget.
-const IN_LESSON_EXTRAS = {
-  'flip-card-deck': { maxCards: 4 },
-  'knowledge-check': { maxItems: 3 },
-  'scenario-branching': { minDecisions: 2, maxDecisions: 2 },
+// lesson with a few artifacts inside its time budget. The user may pick a
+// count inside [min, max] in the context panel; anything else is clamped.
+const IN_LESSON_SIZES = {
+  'flip-card-deck': { default: 4, min: 3, max: 4 },
+  'knowledge-check': { default: 3, min: 2, max: 3 },
+  'scenario-branching': { default: 2, min: 2, max: 3 },
+}
+
+// Turn a count into the extras the type's prompt template understands.
+// A scenario gets exactly that many decisions, so its time is predictable.
+function extrasFor(type, count) {
+  const size = IN_LESSON_SIZES[type]
+  if (!size) return {}
+  const n = count === undefined || count === null ? size.default : count
+  if (type === 'flip-card-deck') return { maxCards: n }
+  if (type === 'knowledge-check') return { maxItems: n }
+  return { minDecisions: n, maxDecisions: n }
+}
+
+// The per-block steering a user can set. Every field is optional. Only
+// non-empty fields are kept; text is trimmed and capped; the count is
+// clamped to the in-lesson limits; unknown fields are ignored.
+const MAX_FOCUS = 300
+const MAX_SOURCE_SECTION = 200
+const MAX_NOTES = 1000
+
+function sanitizeGenerationContext(type, raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const out = {}
+  const focus = str(raw.focus).slice(0, MAX_FOCUS)
+  if (focus) out.focus = focus
+  const section = str(raw.source_section).slice(0, MAX_SOURCE_SECTION)
+  if (section) out.source_section = section
+  const notes = str(raw.notes).slice(0, MAX_NOTES)
+  if (notes) out.notes = notes
+  const experience = experienceOrEmpty(raw.experience)
+  if (experience) out.experience = experience
+  const size = IN_LESSON_SIZES[type]
+  if (size && raw.count !== undefined && raw.count !== null && raw.count !== '') {
+    const n = Number(raw.count)
+    if (Number.isInteger(n)) out.count = Math.min(size.max, Math.max(size.min, n))
+  }
+  return out
 }
 
 // ── small helpers ────────────────────────────────────────────────────
@@ -102,7 +140,7 @@ function presentLesson(projectSlug, lesson) {
     const key = store.artifactKey(b.ref.source, b.ref.artifact)
     return artifacts[key] ? b : { ...b, unavailable: true }
   })
-  return { lesson: computed, artifacts }
+  return { lesson: computed, artifacts, limits: IN_LESSON_SIZES }
 }
 
 function summarizeLesson(projectSlug, lesson) {
@@ -462,22 +500,43 @@ async function acceptPlacement(projectSlug, lessonId, blockId, body, llmConfig) 
       'Keep it focused on the lesson objective, and keep it short enough for a lesson of ' +
         `${lesson.time_budget_minutes} minutes or less.`,
     ].filter(Boolean).join(' ')
-    const steering = [lesson.steering?.per_generation_prompt, placement].filter(Boolean).join('\n')
+
+    // The user's context for THIS block. If the request carries none, a
+    // regenerate reuses what the block stored; an explicit (even empty)
+    // context replaces it.
+    const given = body.context !== undefined
+      ? sanitizeGenerationContext(block.artifact_type, body.context)
+      : (block.generation_context || {})
+
+    // An experience override applies to this generation only; the
+    // lesson's own level is unchanged.
+    const learnerContext = given.experience
+      ? { ...lesson.context, experience: given.experience }
+      : lesson.context
 
     const promptContext = buildPromptContext({
       sourceContent: text,
-      context: lesson.context,
+      context: learnerContext,
       project,
-      perGenerationPrompt: steering,
+      perGenerationPrompt: lesson.steering?.per_generation_prompt,
       perGenerationObjective: lesson.objective,
+      blockContext: {
+        placement,
+        focus: given.focus,
+        sourceSection: given.source_section,
+        notes: given.notes,
+      },
     })
 
     const result = await typeModule.generate({
       promptContext,
-      extras: IN_LESSON_EXTRAS[block.artifact_type] || {},
+      extras: extrasFor(block.artifact_type, given.count),
       sourceDir: store.sourceDirPath(projectSlug, primary),
       llmConfig,
     })
+    // Kept on the block so Regenerate can reuse it and the user can edit it.
+    if (Object.keys(given).length) block.generation_context = given
+    else delete block.generation_context
     block.ref = { source: primary, artifact: result.folder }
   } else {
     throw validation('Choose to generate a new artifact or pick an existing one.')
@@ -508,7 +567,7 @@ function removeBlock(projectSlug, lessonId, blockId) {
 }
 
 module.exports = {
-  IN_LESSON_EXTRAS,
+  IN_LESSON_SIZES,
   listLessons,
   getLesson,
   createLesson,

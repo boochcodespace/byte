@@ -48,6 +48,20 @@ Apply all three. If they conflict, prioritize in this order:
 Per-Generation Prompt > Custom Instructions > Style Guide > 2026
 Principles > Your defaults.
 
+BLOCK CONTEXT
+A generation inside a lesson also carries a BLOCK CONTEXT section. It
+says where the block sits in the lesson and, when the user set them, a
+focus, a source section, and notes for that ONE block. Apply it to that
+block's content focus, where it overrides the project custom
+instructions. It never overrides the item writing rules, the design
+principles, or the project style guide (voice, tone, names). When a
+BLOCK CONTEXT is present, rank the layers, highest first: item writing
+rules and design principles; project style guide; block context;
+project custom instructions. The per-generation prompt keeps its
+existing position. "Source section" means draw mainly from the part of
+the sources that matches it. If you cannot find it, use the closest
+material and say so in spaced_repetition_notes.
+
 2026 MODERN LEARNING DESIGN PRINCIPLES
 
 Every artifact must follow these. Non-negotiable.

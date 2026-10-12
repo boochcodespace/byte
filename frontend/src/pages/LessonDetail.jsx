@@ -8,6 +8,7 @@ import LoadingState from '../components/LoadingState'
 import ErrorState from '../components/ErrorState'
 import TimeMeter from '../components/TimeMeter'
 import ArtifactPicker from '../components/ArtifactPicker'
+import ContextPanel from '../components/ContextPanel'
 import { TextBlock, ArtifactBlock } from '../components/LessonBlocks'
 import './Lesson.css'
 
@@ -63,6 +64,8 @@ function LessonDetail() {
   const [activeBlock, setActiveBlock] = useState(null)   // block being worked on
   const [failedBlock, setFailedBlock] = useState(null)   // block whose last action failed
   const [pickerFor, setPickerFor] = useState(null)       // block whose picker is open
+  const [contextFor, setContextFor] = useState(null)     // block whose context panel is open
+  const [limits, setLimits] = useState(null)             // in-lesson size limits from the API
 
   const loadAction = useAsyncAction()
   const blueprintAction = useAsyncAction()
@@ -74,6 +77,7 @@ function LessonDetail() {
   const applyResponse = useCallback((resp) => {
     setLesson(resp.lesson)
     setArtifacts(prev => stabilizeArtifacts(prev, resp.artifacts))
+    if (resp.limits) setLimits(resp.limits)
   }, [])
 
   const loadLesson = useCallback(async () => {
@@ -145,13 +149,18 @@ function LessonDetail() {
     if (resp) {
       applyResponse(resp)
       setPickerFor(null)
+      setContextFor(null)
     } else {
       setFailedBlock(blockId)
     }
   }, [blockAction, applyResponse])
 
-  const generateArtifact = block =>
-    runBlock(block.id, () => api.post(`${base}/blocks/${block.id}/artifact`, { mode: 'new' }))
+  // Generate (or regenerate) with the context typed in the panel.
+  const generateArtifact = (block, context) =>
+    runBlock(block.id, () => api.post(`${base}/blocks/${block.id}/artifact`, { mode: 'new', context }))
+  // Open the context panel for a block. Only one panel or picker is open.
+  const openContext = block => { setPickerFor(null); setContextFor(block.id) }
+  const openPicker = block => { setContextFor(null); setPickerFor(block.id) }
   const pickArtifact = (block, ref) =>
     runBlock(block.id, () =>
       api.post(`${base}/blocks/${block.id}/artifact`, { mode: 'existing', source: ref.source, artifact: ref.folder }))
@@ -442,10 +451,22 @@ function LessonDetail() {
                   artifact={artifact}
                   busy={activeBlock === block.id && blockAction.loading}
                   disabled={blockAction.loading}
-                  onGenerate={() => generateArtifact(block)}
-                  onPickExisting={() => setPickerFor(block.id)}
+                  onGenerate={() => openContext(block)}
+                  onPickExisting={() => openPicker(block)}
                   onRemove={() => removeBlock(block)}
                 >
+                  {contextFor === block.id && (
+                    <ContextPanel
+                      type={block.artifact_type}
+                      initial={block.generation_context}
+                      limits={limits}
+                      lessonExperience={lesson.context?.experience}
+                      busy={activeBlock === block.id && blockAction.loading}
+                      submitLabel={block.state === 'ready' ? 'Regenerate' : 'Generate'}
+                      onSubmit={ctx => generateArtifact(block, ctx)}
+                      onCancel={() => setContextFor(null)}
+                    />
+                  )}
                   {pickerFor === block.id && (
                     <ArtifactPicker
                       projectSlug={projectSlug}

@@ -129,7 +129,20 @@ function ReplaceControl({ onPickExisting, onGenerate, locked }) {
   )
 }
 
-// children: the artifact picker and/or an error, rendered under the block.
+// One line describing the context a block was generated with, or '' if none.
+function contextSummary(ctx) {
+  if (!ctx) return ''
+  const parts = []
+  if (ctx.focus) parts.push(`focus "${ctx.focus}"`)
+  if (ctx.source_section) parts.push(`source section "${ctx.source_section}"`)
+  if (ctx.count) parts.push(`count ${ctx.count}`)
+  if (ctx.experience) parts.push(`${ctx.experience} level`)
+  if (ctx.notes) parts.push(`notes "${ctx.notes.length > 80 ? ctx.notes.slice(0, 80) + '…' : ctx.notes}"`)
+  return parts.join(', ')
+}
+
+// children: the context panel, the artifact picker, and/or an error,
+// rendered under the block.
 export function ArtifactBlock({
   block,
   artifact,
@@ -163,7 +176,13 @@ export function ArtifactBlock({
         {/* The renderer owns the learner's progress. It only resets if
             `artifact` changes identity or this key changes. */}
         <Renderer key={`${block.id}:${block.ref.source}/${block.ref.artifact}`} artifact={artifact} />
+        {contextSummary(block.generation_context) && (
+          <p className="lesson-proposal-note">Generated with: {contextSummary(block.generation_context)}</p>
+        )}
         <div className="lesson-actions">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={locked}>
+            Regenerate
+          </button>
           <ReplaceControl onPickExisting={onPickExisting} onGenerate={onGenerate} locked={locked} />
           <RemoveControl onRemove={onRemove} locked={locked} />
         </div>
