@@ -18,6 +18,7 @@
 
 import FlipCardDeckRenderer from './flip-card-deck/Renderer'
 import ScenarioBranchingRenderer from './scenario-branching/Renderer'
+import KnowledgeCheckRenderer from './knowledge-check/Renderer'
 
 export const DEFAULT_TYPE = 'flip-card-deck'
 
@@ -31,6 +32,11 @@ const ARTIFACT_TYPES = {
     label: 'Scenario Branching',
     icon: '🔀',
     Renderer: ScenarioBranchingRenderer,
+  },
+  'knowledge-check': {
+    label: 'Knowledge Check',
+    icon: '✅',
+    Renderer: KnowledgeCheckRenderer,
   },
 }
 

@@ -144,11 +144,11 @@ Design artifacts so the same source content can be revisited through
 different artifact types over time. The testing effect is real:
 repeatedly retrieving information produces far better delayed recall
 than repeatedly studying it. Bake retrieval INTO the artifact, do not
-trust learners to seek it. Byte schedules follow-up retrieval from
-each artifact automatically, so write every question or decision to
-stand alone and still make sense days later. Note in
-spaced_repetition_notes which
-specific cards, questions, or scenarios would benefit from
+trust learners to seek it. Byte schedules follow-up recall at day 2,
+day 7, and day 21 after the learner finishes, so write every question
+or decision to stand alone and still make sense on those later days,
+with no reference to earlier screens. Note in spaced_repetition_notes
+which specific cards, questions, or scenarios would benefit from
 resurfacing as a different artifact type later.
 
 VISUAL ANCHOR MANDATORY
@@ -266,6 +266,8 @@ Currently supported artifact types:
   flip-card-deck: bite-sized card deck with front-back reveals
   scenario-branching: short decision tree where the learner commits to
     a choice, then sees the consequence
+  knowledge-check: short set of single-best-answer questions where the
+    learner commits to an answer, then sees the reasoning
 
 All artifact types share these principles. Type-specific rules
 supplement these shared rules, never replace them.
