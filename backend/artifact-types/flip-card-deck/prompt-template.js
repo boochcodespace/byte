@@ -37,6 +37,13 @@ CARD CONSTRUCTION
 - Back: the answer or insight, stripped to its core (maximum \
 25 words, one sentence)
 - Never compound questions on the front
+- Write each front as a complete, focused question or decision point \
+that a prepared learner could answer from memory. Use positive phrasing, \
+no double negatives, and never "best" alone
+- The front must not give the answer away. Do not repeat distinctive \
+words from the back, and do not hint at the answer in the wording
+- Write in second person. Do not name people unless the PROJECT STYLE \
+GUIDE explicitly asks for named characters
 - Every front makes the learner answer, predict, or decide before the \
 back is revealed
 - Every card makes sense on its own days later, with no reference to \

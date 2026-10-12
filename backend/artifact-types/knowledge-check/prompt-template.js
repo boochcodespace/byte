@@ -69,7 +69,8 @@ unavoidable, write the negative word in capitals
 - Do not use "best" alone. Say what makes an answer stronger, such as \
 "most efficient" or "most likely to prevent rework"
 - Do not name people in stems or scenarios. Use "you," "a team \
-member," or "your manager"
+member," or "your manager," unless the PROJECT STYLE GUIDE explicitly \
+asks for named characters
 - Nothing in the stem or scenario may hint at which option is correct
 
 OPTION RULES

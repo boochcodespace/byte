@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { shuffledOrder } from '../../lib/shuffle'
 import './Renderer.css'
 
 // Knowledge Check renderer.
@@ -22,18 +23,8 @@ import './Renderer.css'
 
 const LETTERS = ['A', 'B', 'C', 'D']
 
-// Fisher-Yates over the option indexes of one item
-function shuffled(length) {
-  const order = Array.from({ length }, (_, i) => i)
-  for (let i = order.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[order[i], order[j]] = [order[j], order[i]]
-  }
-  return order
-}
-
 function makeOrders(items) {
-  return items.map(item => shuffled((item.options ?? []).length))
+  return items.map(item => shuffledOrder((item.options ?? []).length))
 }
 
 function Renderer({ artifact }) {

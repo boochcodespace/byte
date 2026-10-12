@@ -8,10 +8,41 @@
 // Retrieval-first lives in two places: this prompt (no choice may hint
 // at the best answer; feedback is written for AFTER the learner
 // commits) and the renderer (feedback is not shown until a choice is
-// locked in).
+// locked in). The renderer also shuffles choice order, so the model is
+// told never to refer to choices by position.
+//
+// Decision count: standalone scenarios run 3 to 5 decisions. The lesson
+// generator passes extras.minDecisions / extras.maxDecisions (2 to 3
+// inside a lesson). Values are clamped to 2 to 5 so a bad value cannot
+// produce an unusable prompt.
 
-function promptTemplate(ctx /* , extras — scenario-branching has none today */) {
+const DEFAULT_MIN_DECISIONS = 3
+const DEFAULT_MAX_DECISIONS = 5
+const FLOOR_DECISIONS = 2
+const CEILING_DECISIONS = 5
+
+function clampDecisions(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback
+  const n = Number(value)
+  if (!Number.isInteger(n)) return fallback
+  return Math.min(CEILING_DECISIONS, Math.max(FLOOR_DECISIONS, n))
+}
+
+function resolveDecisionRange(extras = {}) {
+  const max = clampDecisions(extras.maxDecisions, DEFAULT_MAX_DECISIONS)
+  // If only a max is given, never default the min above it
+  let min = clampDecisions(extras.minDecisions, Math.min(DEFAULT_MIN_DECISIONS, max))
+  if (min > max) min = max
+  return { min, max }
+}
+
+function promptTemplate(ctx, extras = {}) {
   const { sourceContent, steeringBlock, learnerContextBlock, objectivesBlock } = ctx
+  const { min, max } = resolveDecisionRange(extras)
+
+  const decisionText = min === max ? `exactly ${min}` : `${min} to ${max}`
+  const nodesMin = min + 2
+  const nodesMax = max + 3
 
   return `Generate a branching scenario from the following source content. This is \
 SECONDARY content creation: treat the source as reference material to \
@@ -31,9 +62,9 @@ ${sourceContent}
 ═══ REQUIREMENTS ═══
 
 SIZING
-- 3 to 5 decision points on any path from start to ending
-- 5 to 8 nodes in total, including endings (use fewer when the source \
-is thin; do not pad)
+- ${decisionText} decision points on any path from start to ending
+- ${nodesMin} to ${nodesMax} nodes in total, including endings (use fewer when \
+the source is thin; do not pad)
 - 2 or 3 choices per decision node
 - Every path reaches an ending node
 - Total completion time under 5 minutes
@@ -54,30 +85,50 @@ Paths may converge on the same node
 
 DECISION DESIGN
 - "situation" (maximum 60 words) describes a realistic moment from the \
-source and ends with the decision the learner must make
-- Choice "text" is maximum 25 words, specific, and similar in length and \
-tone to its siblings
+source, in second person, and ends with the decision the learner must \
+make. It is self-contained: a prepared learner can form an answer \
+before reading the choices
+- Do not name people. Use "you," "your teammate," "your manager," or \
+another role, unless the PROJECT STYLE GUIDE explicitly asks for named \
+characters
+- Choice "text" is maximum 25 words, specific, and grammatically \
+consistent with the decision the situation asks for
+- The best choice must NOT be obvious. At least one other choice is \
+what a capable person under pressure would actually do, and a \
+partially prepared learner would find it tempting
+- Build every other choice from a realistic mistake, misconception, or \
+reasonable-but-costly approach found in the source. Never write filler \
+or silly options. Ask: would a partially prepared learner actually pick \
+this?
+- Match the choices in length, specificity, and tone. The best choice \
+must not be the longest or the most detailed. It must not be the only \
+choice that sounds careful, patient, or collaborative, and not the only \
+one that uses the source's terminology
 - Nothing in the situation or the choice text may hint at which choice \
-is best. No "obviously," no "always," no "recommended," no giveaway \
-wording
+is best. No "obviously," no "recommended," no giveaway wording. Absolute \
+words ("always," "never," "only") must appear in every choice or in none
+- Choices are mutually exclusive. No "all of the above," no combined \
+answers, and no choice that bundles two actions with "and"
 - Every decision node has exactly one choice with quality "best". Other \
 choices are "acceptable" (defensible but costly) or "weak" (reflects a \
 common misconception from the source)
-- Vary the position of the best choice from node to node. Do not make it \
-the longest or the first
+- Vary the position of the best choice from node to node
 - Test the objective's Bloom verb. If the objective says Apply, the \
 learner applies the source's method to a case. Do not ask recall questions
 
 FEEDBACK
 - The learner sees "feedback" only AFTER committing to that choice, so \
 write it as a response to a decision already made
-- Maximum 40 words. Name what the choice leads to and why, grounded in \
-the source
-- Never write "Correct," "Incorrect," or "Wrong." For "weak" choices, \
-normalize the attempt, explain the consequence, and point to the \
-stronger approach without blame. Use "yet" framing where it fits
+- Make it consequence-based: say what happens next in the situation \
+because of that choice, then why, grounded in the source. Maximum 40 words
+- Never write "Correct," "Incorrect," "Wrong," "Right," or "Not quite." \
+For "weak" choices, normalize the attempt, explain the consequence, and \
+point to the stronger approach without blame. Use "yet" framing where it \
+fits
 - Feedback on a "best" choice names the specific reason it worked, not \
 just that it did
+- Never refer to choices by letter or position. The order changes when \
+the learner sees it
 
 ENDINGS
 - Each ending's "situation" (maximum 50 words) describes the result of \
@@ -113,27 +164,27 @@ Here is one exemplar decision node showing the level of detail expected:
   {
     "id": "n1",
     "kind": "decision",
-    "situation": "Aisha, your teammate, says she is stuck on a report due Friday. You have 15 minutes before your next meeting. What do you do first?",
+    "situation": "A teammate tells you they are stuck on a report due Friday. You have 15 minutes before your next meeting. What do you do first?",
     "choices": [
       {
-        "text": "Ask her to walk you through the part where she is stuck.",
-        "feedback": "You learn where the real block is. Her answer shows the gap is the data source, not the writing, so you can point her to the right person.",
-        "next": "n2",
-        "quality": "best"
-      },
-      {
-        "text": "Offer to rewrite the draft after your meeting.",
-        "feedback": "This clears Friday's deadline, but the cause stays hidden. Aisha is likely to hit the same block on the next report.",
+        "text": "Offer to rewrite their draft after your next meeting ends.",
+        "feedback": "This clears Friday's deadline, but the cause stays hidden. Your teammate is likely to hit the same block on the next report.",
         "next": "n3",
         "quality": "weak"
+      },
+      {
+        "text": "Ask them to show you the exact step where they are stuck.",
+        "feedback": "You learn where the real block is. Their answer shows the gap is the data source, not the writing, so you can point them to the right person.",
+        "next": "n2",
+        "quality": "best"
       }
     ]
   }
 
-Note the structural details: a concrete time limit and deadline, a named \
-person, choices of similar length, feedback that names a consequence. \
-This level of specific detail separates professional scenarios from \
-generic AI output.
+Note the structural details: a concrete time limit and deadline, a \
+role instead of a name, choices of similar length, a tempting wrong \
+choice, and feedback that names a consequence. This level of specific \
+detail separates professional scenarios from generic AI output.
 
 Respond in this JSON schema:
 {
@@ -167,4 +218,4 @@ ambiguities in the source)"
 Ending nodes omit the "choices" field.`
 }
 
-module.exports = { promptTemplate }
+module.exports = { promptTemplate, resolveDecisionRange }

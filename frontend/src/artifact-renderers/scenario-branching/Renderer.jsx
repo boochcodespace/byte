@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { shuffledOrder } from '../../lib/shuffle'
 import './Renderer.css'
 
 // Scenario Branching renderer.
@@ -12,6 +13,11 @@ import './Renderer.css'
 //
 // Contract (shared by every artifact renderer):
 //   props.artifact — the parsed artifact.json for this type
+//
+// Choice order is shuffled once per node per attempt, so the position
+// of the strongest choice carries no information. The order stays
+// stable while the learner is on a node (including "Try a different
+// choice") and is reshuffled on restart. Stored data is never changed.
 //
 // Defensive on purpose: model output can contain a `next` that points
 // nowhere. A dangling or missing `next` ends the path gracefully
@@ -34,9 +40,11 @@ function Renderer({ artifact }) {
   const [deadEnd, setDeadEnd] = useState(false)
 
   const continueRef = useRef(null)
+  const orders = useRef(new Map())   // nodeId → shuffled order of its choices
 
   // Start over whenever a different artifact is passed in
   useEffect(() => {
+    orders.current = new Map()
     setCurrentId(startId)
     setPicked(null)
     setPath([])
@@ -69,7 +77,18 @@ function Renderer({ artifact }) {
     else setDeadEnd(true)
   }
 
+  // Display order of a node's choices: created the first time the node
+  // is shown in this attempt, then kept.
+  function orderFor(nodeId, length) {
+    const existing = orders.current.get(nodeId)
+    if (existing && existing.length === length) return existing
+    const fresh = shuffledOrder(length)
+    orders.current.set(nodeId, fresh)
+    return fresh
+  }
+
   function restart() {
+    orders.current = new Map()
     setCurrentId(startId)
     setPicked(null)
     setPath([])
@@ -93,7 +112,7 @@ function Renderer({ artifact }) {
           <p className="scenario-situation">{node.situation}</p>
 
           <div className="scenario-choices" role="group" aria-label="Your options">
-            {choices.map((choice, i) => (
+            {orderFor(node.id, choices.length).map(i => (
               <button
                 key={i}
                 type="button"
@@ -102,7 +121,7 @@ function Renderer({ artifact }) {
                 disabled={picked !== null}
                 aria-pressed={picked === i}
               >
-                {choice.text}
+                {choices[i].text}
               </button>
             ))}
           </div>
