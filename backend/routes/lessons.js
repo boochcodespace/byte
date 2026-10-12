@@ -8,8 +8,9 @@
 //   POST   /:lessonId/blueprint/generate       model call
 //   PUT    /:lessonId/blueprint                edit and/or approve
 //   POST   /:lessonId/text/generate            model call
-//   POST   /:lessonId/blocks/:blockId/artifact accept a placement
-//   DELETE /:lessonId/blocks/:blockId          dismiss a proposed artifact
+//   POST   /:lessonId/blocks/:blockId/artifact accept a placement, or replace
+//   DELETE /:lessonId/blocks/:blockId          remove an artifact block
+//                                              (the artifact itself stays)
 //
 // All logic lives in lessons/service.js. This file only parses the
 // request, checks ids, resolves the AI provider, and turns errors into
@@ -140,9 +141,9 @@ router.delete('/:lessonId/blocks/:blockId', (req, res) => {
   try {
     checkIds(req)
     const { projectSlug, lessonId, blockId } = req.params
-    return sendOk(res, service.dismissBlock(projectSlug, lessonId, blockId))
+    return sendOk(res, service.removeBlock(projectSlug, lessonId, blockId))
   } catch (err) {
-    return fail(res, 'lessons:dismiss', err)
+    return fail(res, 'lessons:remove', err)
   }
 })
 

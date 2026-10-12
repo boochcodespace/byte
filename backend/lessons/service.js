@@ -404,13 +404,6 @@ async function generateText(projectSlug, lessonId, llmConfig) {
 
 // ── placements ───────────────────────────────────────────────────────
 
-// A block can take an artifact when it is still a proposal, or when its
-// reference no longer resolves (the orphan case).
-function canReceiveArtifact(projectSlug, block) {
-  if (block.state === 'proposed' || !block.ref) return true
-  return !store.readArtifact(projectSlug, block.ref.source, block.ref.artifact)
-}
-
 function nearestTextBlock(lesson, blockId) {
   const idx = lesson.blocks.findIndex(b => b.id === blockId)
   for (let i = idx - 1; i >= 0; i--) {
@@ -419,6 +412,17 @@ function nearestTextBlock(lesson, blockId) {
   return null
 }
 
+// Fill an artifact block: accept a proposal, or REPLACE what the block
+// already holds (a working artifact or an orphaned reference).
+//
+//   mode "existing"  point the block at an artifact already in the project
+//   mode "new"       generate a new artifact for this lesson, saved in the
+//                    primary source's folder
+//
+// Replacing only changes the block's reference. The artifact it held
+// before is never touched: its files stay where they are, it stays in the
+// project, and it is still offered by the picker. If generation fails,
+// the block keeps what it had.
 async function acceptPlacement(projectSlug, lessonId, blockId, body, llmConfig) {
   const project = requireProject(projectSlug)
   const lesson = requireLesson(projectSlug, lessonId)
@@ -426,9 +430,6 @@ async function acceptPlacement(projectSlug, lessonId, blockId, body, llmConfig) 
 
   const block = lesson.blocks.find(b => b.id === blockId)
   if (!block || block.kind !== 'artifact') throw notFound('That artifact slot was not found.')
-  if (!canReceiveArtifact(projectSlug, block)) {
-    throw validation('This slot already has an artifact.')
-  }
 
   const mode = body?.mode
   const primary = lesson.sources[0]
@@ -441,6 +442,9 @@ async function acceptPlacement(projectSlug, lessonId, blockId, body, llmConfig) 
     const foundType = found.type || 'flip-card-deck'
     if (foundType !== block.artifact_type) {
       throw validation('Pick an artifact of the same type as this slot.')
+    }
+    if (block.ref && block.ref.source === source && block.ref.artifact === artifact) {
+      throw validation('This lesson already uses that artifact. Pick a different one.')
     }
     block.ref = { source, artifact }
   } else if (mode === 'new') {
@@ -484,15 +488,19 @@ async function acceptPlacement(projectSlug, lessonId, blockId, body, llmConfig) 
   return presentLesson(projectSlug, lesson)
 }
 
-// For now only a PROPOSED artifact can be dismissed. Other blocks are
-// removed through the lesson editor in a later phase.
-function dismissBlock(projectSlug, lessonId, blockId) {
+// Remove an artifact block from the lesson: proposed, ready, or orphaned.
+// This takes the BLOCK out of the lesson and nothing else. The artifact's
+// files are never deleted, it stays in the project, and it is still
+// offered by the picker. (Removing a proposed block is the same as
+// dismissing it.) Text blocks are removed through the lesson editor in a
+// later phase.
+function removeBlock(projectSlug, lessonId, blockId) {
   requireProject(projectSlug)
   const lesson = requireLesson(projectSlug, lessonId)
   const block = lesson.blocks.find(b => b.id === blockId)
   if (!block) throw notFound('That block was not found.')
-  if (block.kind !== 'artifact' || block.state !== 'proposed') {
-    throw validation('Only a proposed artifact can be dismissed for now.')
+  if (block.kind !== 'artifact') {
+    throw validation('Only artifact blocks can be removed for now.')
   }
   lesson.blocks = lesson.blocks.filter(b => b.id !== blockId)
   store.writeLesson(projectSlug, lesson)
@@ -508,5 +516,5 @@ module.exports = {
   editBlueprint,
   generateText,
   acceptPlacement,
-  dismissBlock,
+  removeBlock,
 }

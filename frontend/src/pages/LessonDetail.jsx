@@ -155,7 +155,7 @@ function LessonDetail() {
   const pickArtifact = (block, ref) =>
     runBlock(block.id, () =>
       api.post(`${base}/blocks/${block.id}/artifact`, { mode: 'existing', source: ref.source, artifact: ref.folder }))
-  const dismissBlock = block =>
+  const removeBlock = block =>
     runBlock(block.id, () => api.delete(`${base}/blocks/${block.id}`))
 
   // ── draft editing helpers ──────────────────────────────────────────
@@ -444,12 +444,13 @@ function LessonDetail() {
                   disabled={blockAction.loading}
                   onGenerate={() => generateArtifact(block)}
                   onPickExisting={() => setPickerFor(block.id)}
-                  onDismiss={() => dismissBlock(block)}
+                  onRemove={() => removeBlock(block)}
                 >
                   {pickerFor === block.id && (
                     <ArtifactPicker
                       projectSlug={projectSlug}
                       type={block.artifact_type}
+                      currentRef={block.ref}
                       onPick={ref => pickArtifact(block, ref)}
                       onCancel={() => setPickerFor(null)}
                     />

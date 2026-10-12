@@ -15,6 +15,8 @@ import ErrorState from './ErrorState'
 // Props:
 //   projectSlug — the project to list from
 //   type        — artifact type to offer (the slot's type)
+//   currentRef  — optional { source, artifact } the slot already uses; it is
+//                 shown as "In this lesson" and cannot be picked again
 //   onPick      — called with { source, folder }
 //   onCancel    — closes the picker
 
@@ -23,7 +25,7 @@ function formatDate(ms) {
   return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-function ArtifactPicker({ projectSlug, type, onPick, onCancel }) {
+function ArtifactPicker({ projectSlug, type, currentRef, onPick, onCancel }) {
   const [items, setItems] = useState(null)
   const loadAction = useAsyncAction()
   const { label } = getTypeMeta(type)
@@ -62,7 +64,9 @@ function ArtifactPicker({ projectSlug, type, onPick, onCancel }) {
 
       {items && items.length > 0 && (
         <ul className="artifact-picker-list">
-          {items.map(item => (
+          {items.map(item => {
+            const inUse = !!currentRef && currentRef.source === item.source && currentRef.artifact === item.folder
+            return (
             <li key={`${item.source}/${item.folder}`} className="picker-item">
               <div className="picker-item-text">
                 <div className="picker-item-title">{item.title || `${label} (no objective saved)`}</div>
@@ -75,11 +79,13 @@ function ArtifactPicker({ projectSlug, type, onPick, onCancel }) {
                 type="button"
                 className="btn btn-primary btn-sm"
                 onClick={() => onPick({ source: item.source, folder: item.folder })}
+                disabled={inUse}
               >
-                Use this
+                {inUse ? 'In this lesson' : 'Use this'}
               </button>
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
     </div>

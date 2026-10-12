@@ -77,6 +77,58 @@ export function TextBlock({ block }) {
   )
 }
 
+// Remove with a short confirmation. Removing takes the BLOCK out of the
+// lesson only; the artifact itself stays in the project and is still
+// offered by the picker.
+function RemoveControl({ onRemove, locked }) {
+  const [confirming, setConfirming] = useState(false)
+  if (!confirming) {
+    return (
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setConfirming(true)} disabled={locked}>
+        Remove
+      </button>
+    )
+  }
+  return (
+    <span className="delete-confirm">
+      <span>Remove this from the lesson? The artifact stays in your project.</span>
+      <button type="button" className="btn btn-danger btn-sm" onClick={onRemove} disabled={locked}>
+        Yes, remove
+      </button>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setConfirming(false)} disabled={locked}>
+        Cancel
+      </button>
+    </span>
+  )
+}
+
+// Replace offers two choices: pick another existing artifact, or generate
+// a new one. The artifact being replaced stays in the project.
+function ReplaceControl({ onPickExisting, onGenerate, locked }) {
+  const [open, setOpen] = useState(false)
+  if (!open) {
+    return (
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen(true)} disabled={locked}>
+        Replace
+      </button>
+    )
+  }
+  return (
+    <span className="delete-confirm">
+      <span>Replace with:</span>
+      <button type="button" className="btn btn-primary btn-sm" onClick={() => { setOpen(false); onPickExisting() }} disabled={locked}>
+        Pick another existing
+      </button>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setOpen(false); onGenerate() }} disabled={locked}>
+        Generate a new one
+      </button>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen(false)} disabled={locked}>
+        Cancel
+      </button>
+    </span>
+  )
+}
+
 // children: the artifact picker and/or an error, rendered under the block.
 export function ArtifactBlock({
   block,
@@ -85,13 +137,20 @@ export function ArtifactBlock({
   disabled,
   onGenerate,
   onPickExisting,
-  onDismiss,
+  onRemove,
   children,
 }) {
   const meta = getTypeMeta(block.artifact_type)
   // `busy` shows this block's spinner; `disabled` also locks every other
   // block's buttons while any action is running (one action at a time).
   const locked = busy || disabled
+  const spinner = busy && (
+    <LoadingState
+      subtle
+      message={`Generating your ${meta.label.toLowerCase()}...`}
+      hint="This may take up to 30 seconds."
+    />
+  )
 
   if (block.state === 'ready' && artifact && !block.unavailable) {
     const Renderer = getRenderer(block.artifact_type)
@@ -104,6 +163,11 @@ export function ArtifactBlock({
         {/* The renderer owns the learner's progress. It only resets if
             `artifact` changes identity or this key changes. */}
         <Renderer key={`${block.id}:${block.ref.source}/${block.ref.artifact}`} artifact={artifact} />
+        <div className="lesson-actions">
+          <ReplaceControl onPickExisting={onPickExisting} onGenerate={onGenerate} locked={locked} />
+          <RemoveControl onRemove={onRemove} locked={locked} />
+        </div>
+        {spinner}
         {children}
       </div>
     )
@@ -123,8 +187,9 @@ export function ArtifactBlock({
           <button type="button" className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={locked}>
             Generate a new one
           </button>
+          <RemoveControl onRemove={onRemove} locked={locked} />
         </div>
-        {busy && <LoadingState subtle message={`Generating your ${meta.label.toLowerCase()}...`} />}
+        {spinner}
         {children}
       </div>
     )
@@ -145,17 +210,9 @@ export function ArtifactBlock({
         <button type="button" className="btn btn-secondary btn-sm" onClick={onPickExisting} disabled={locked}>
           Pick existing
         </button>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={onDismiss} disabled={locked}>
-          Dismiss
-        </button>
+        <RemoveControl onRemove={onRemove} locked={locked} />
       </div>
-      {busy && (
-        <LoadingState
-          subtle
-          message={`Generating your ${meta.label.toLowerCase()}...`}
-          hint="This may take up to 30 seconds."
-        />
-      )}
+      {spinner}
       {children}
     </div>
   )
