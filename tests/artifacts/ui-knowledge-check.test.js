@@ -1,5 +1,6 @@
 // Browser: the knowledge check renderer and generation
 // Run by `npm run test:all`. Uses a mock AI model and a throwaway HOME.
+const env = require('../support/env')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -11,7 +12,6 @@ const { buildPromptContext } = require(env.REPO + '/backend/artifact-types/share
 const { SYSTEM_PROMPT } = require(env.REPO + '/backend/artifact-types/shared/system-prompt')
 const { listSupportedTypes } = require(env.REPO + '/backend/artifact-types/registry')
 
-const env = require('../support/env')
 const HOME = env.HOME
 const SHOT = env.SHOT
 let pass = 0, fail = 0

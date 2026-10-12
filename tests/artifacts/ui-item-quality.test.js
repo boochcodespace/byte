@@ -1,5 +1,6 @@
 // Browser: item quality, option shuffling, names policy, and scenario defaults
 // Run by `npm run test:all`. Uses a mock AI model and a throwaway HOME.
+const env = require('../support/env')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -11,7 +12,6 @@ const flip = require(`${B}/flip-card-deck/prompt-template`)
 const kc = require(`${B}/knowledge-check/prompt-template`)
 const { buildPromptContext } = require(`${B}/shared/build-prompt-context`)
 
-const env = require('../support/env')
 const HOME = env.HOME
 const SHOT = env.SHOT
 let pass = 0, fail = 0

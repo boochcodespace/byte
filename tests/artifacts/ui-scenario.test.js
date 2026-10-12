@@ -1,5 +1,6 @@
 // Browser: the scenario renderer and generation
 // Run by `npm run test:all`. Uses a mock AI model and a throwaway HOME.
+const env = require('../support/env')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -9,7 +10,6 @@ const schema = require(env.REPO + '/backend/artifact-types/scenario-branching/sc
 const { promptTemplate } = require(env.REPO + '/backend/artifact-types/scenario-branching/prompt-template')
 const { buildPromptContext } = require(env.REPO + '/backend/artifact-types/shared/build-prompt-context')
 
-const env = require('../support/env')
 const HOME = env.HOME
 const SHOT = env.SHOT
 let pass = 0, fail = 0
