@@ -6,8 +6,26 @@
 // card-specific framing, requirements, and JSON response schema
 // preamble.
 
-function promptTemplate(ctx /* , extras — flip-card-deck has none today */) {
+// Card limit: standalone decks keep the 6-to-10 / 4-to-6 sizing. The
+// lesson generator passes extras.maxCards (4 inside lessons) to keep the
+// whole lesson inside its time budget. Clamped to 3 to 10 (a hook, an
+// apply card, and at least one content card).
+function resolveMaxCards(extras = {}) {
+  const v = extras.maxCards
+  if (v === undefined || v === null || v === '') return null
+  const n = Number(v)
+  if (!Number.isInteger(n)) return null
+  return Math.min(10, Math.max(3, n))
+}
+
+function promptTemplate(ctx, extras = {}) {
   const { sourceContent, steeringBlock, learnerContextBlock, objectivesBlock } = ctx
+  const maxCards = resolveMaxCards(extras)
+  const cardSizing = maxCards === null
+    ? `- 6 to 10 cards when source is rich
+- 4 to 6 cards when source is thin (do not pad)`
+    : `- At most ${maxCards} cards in total: one HOOK card, one APPLY card, and \
+the rest CONTENT cards (fewer when the source is thin; do not pad)`
 
   return `Generate a flip card deck from the following source content. This is \
 SECONDARY content creation: treat the source as reference material to \
@@ -26,8 +44,7 @@ ${sourceContent}
 ═══ REQUIREMENTS ═══
 
 DECK SIZING
-- 6 to 10 cards when source is rich
-- 4 to 6 cards when source is thin (do not pad)
+${cardSizing}
 - One learning objective for the full deck, stated at the top
 - Every card is atomic: one fact, one decision point, one insight
 - Total completion time under 5 minutes
@@ -111,4 +128,4 @@ ambiguities in the source)"
 }`
 }
 
-module.exports = { promptTemplate }
+module.exports = { promptTemplate, resolveMaxCards }

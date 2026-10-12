@@ -14,12 +14,16 @@ const os = require('os')
 const slugify = require('slugify')
 const crypto = require('crypto')
 const sourcesRouter = require('./sources')
+const lessonsRouter = require('./lessons')
+const { listProjectArtifacts } = require('../lib/project-artifacts')
 const { ERROR_TYPES, sendOk, sendError, mapSdkError } = require('../lib/error-types')
 
 const PROJECTS_DIR = path.join(os.homedir(), 'Byte', 'projects')
 
 // Mount sources nested router — passes :projectSlug down via mergeParams
 router.use('/:projectSlug/sources', sourcesRouter)
+// Mount lessons nested router (text-first lessons with embedded artifacts)
+router.use('/:projectSlug/lessons', lessonsRouter)
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -196,6 +200,25 @@ router.get('/:projectSlug', (req, res) => {
   } catch (err) {
     const { errorType, debug } = mapSdkError(err)
     console.error('[projects:get]', errorType, debug || err)
+    return sendError(res, errorType, { debug })
+  }
+})
+
+// GET /api/projects/:projectSlug/artifacts[?type=knowledge-check]
+// Read-only list of every artifact across the project's sources, newest
+// first. Storage stays per source; lessons use this to offer existing
+// artifacts and reference them by { source, folder }.
+router.get('/:projectSlug/artifacts', (req, res) => {
+  try {
+    const { projectSlug } = req.params
+    if (!readProject(projectSlug)) {
+      return sendError(res, ERROR_TYPES.NOT_FOUND, { userMessage: 'Project not found.' })
+    }
+    const type = typeof req.query.type === 'string' ? req.query.type : undefined
+    return sendOk(res, listProjectArtifacts(projectSlug, { type }))
+  } catch (err) {
+    const { errorType, debug } = mapSdkError(err)
+    console.error('[projects:artifacts]', errorType, debug || err)
     return sendError(res, errorType, { debug })
   }
 })

@@ -44,9 +44,30 @@ source content and learner context:
   2. PROJECT CUSTOM INSTRUCTIONS — what to focus on (content emphasis)
   3. PER-GENERATION PROMPT — one-off adjustments for this artifact
 
-Apply all three. If they conflict, prioritize in this order:
-Per-Generation Prompt > Custom Instructions > Style Guide > 2026
-Principles > Your defaults.
+Apply all three. They govern different things, so they rarely
+conflict. When they do, these scope-based rules apply to every
+generation:
+
+  - The item writing rules and the design principles in this prompt
+    always win.
+  - The style guide controls voice, tone, and names.
+  - The custom instructions control content emphasis.
+  - The per-generation prompt is a one-off adjustment for this
+    artifact. For content emphasis it overrides the custom
+    instructions. It does not override voice, tone, names, or the item
+    writing rules.
+  - Inside a lesson, the BLOCK CONTEXT fills the per-generation layer
+    for its block. If both are present, the block context wins.
+
+BLOCK CONTEXT
+A generation inside a lesson also carries a BLOCK CONTEXT section. It
+says where the block sits in the lesson and, when the user set them, a
+focus, a source section, and notes for that ONE block. When it is
+present, it overrides the custom instructions for that block's content
+focus only. It never overrides voice, tone, names, or the item writing
+rules. "Source section" means draw mainly from the part of the sources
+that matches it. If you cannot find it, use the closest material and
+say so in spaced_repetition_notes.
 
 2026 MODERN LEARNING DESIGN PRINCIPLES
 
@@ -191,7 +212,8 @@ language that frames wrong answers as failure.
 
 LENGTH LIMITS BY FORMAT
 Video: 2 to 6 minutes. Knowledge checks, flip card decks, and other
-interactive practice: under 5 minutes. Job aids: no time cap; optimize
+interactive practice: under 5 minutes. Lessons: 10 minutes or less in
+total, counting any embedded artifacts. Job aids: no time cap; optimize
 for time-to-answer instead. If an artifact would run past its limit,
 suggest splitting it into multiple artifacts.
 
@@ -310,6 +332,14 @@ Currently supported artifact types:
 
 All artifact types share these principles. Type-specific rules
 supplement these shared rules, never replace them.
+
+You may also be asked to plan a lesson blueprint or to write the text
+blocks of a lesson. A lesson is a text-first document built around ONE
+objective, 10 minutes or less in total, with flip card decks,
+knowledge checks, and scenarios inserted as separate artifacts, and
+with tabs blocks for layering or comparing 2 to 5 parallel ideas. Respond
+in the JSON schema the request gives. Every principle in this prompt
+applies to lesson text.
 
 OUTPUT FORMAT
 

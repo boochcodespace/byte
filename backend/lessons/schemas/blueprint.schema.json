@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LessonBlueprint",
+  "type": "object",
+  "required": ["objective", "sections"],
+  "additionalProperties": true,
+  "properties": {
+    "objective": { "type": "string", "minLength": 1 },
+    "sections": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "title", "purpose", "target_minutes"],
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "enum": ["hook", "chunk", "apply", "recall"] },
+          "title": { "type": "string", "minLength": 1 },
+          "purpose": { "type": "string", "minLength": 1 },
+          "target_minutes": { "type": "number", "minimum": 0 },
+          "recall_day": { "type": "integer", "enum": [2, 7, 21] },
+          "source_refs": { "type": "array", "items": { "type": "string" } }
+        },
+        "if": { "properties": { "kind": { "const": "recall" } }, "required": ["kind"] },
+        "then": { "required": ["recall_day"] }
+      },
+      "allOf": [
+        { "contains": { "properties": { "kind": { "const": "hook" } }, "required": ["kind"] } },
+        { "contains": { "properties": { "kind": { "const": "chunk" } }, "required": ["kind"] } },
+        { "contains": { "properties": { "kind": { "const": "apply" } }, "required": ["kind"] } },
+        { "contains": { "properties": { "recall_day": { "const": 2 } }, "required": ["recall_day"] } },
+        { "contains": { "properties": { "recall_day": { "const": 7 } }, "required": ["recall_day"] } },
+        { "contains": { "properties": { "recall_day": { "const": 21 } }, "required": ["recall_day"] } }
+      ]
+    }
+  }
+}

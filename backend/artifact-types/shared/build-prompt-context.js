@@ -21,6 +21,7 @@ function buildPromptContext({
   project = {},
   perGenerationPrompt = '',
   perGenerationObjective = '',
+  blockContext = null,
 }) {
   // Objective block follows the priority in the system prompt:
   //   per-generation override > source objectives list > infer
@@ -37,7 +38,7 @@ ${context.learningObjectives.trim()}`
 
   return {
     sourceContent: sourceContent || '',
-    steeringBlock: renderSteeringBlock(project, perGenerationPrompt),
+    steeringBlock: renderSteeringBlock(project, perGenerationPrompt, blockContext),
     learnerContextBlock: renderLearnerContextBlock(context),
     objectivesBlock,
   }
@@ -46,8 +47,15 @@ ${context.learningObjectives.trim()}`
 // The steering block renders the three project-level layers plus the
 // per-generation prompt. Ordering matches the system prompt's priority
 // enumeration so the visual structure reinforces the rules.
-function renderSteeringBlock(project, perGenerationPrompt) {
-  return [
+//
+// A generation inside a lesson also passes a blockContext: where the block
+// sits, and any focus, source section, or notes the user set for that ONE
+// block. It renders as its own section after the per-generation prompt,
+// and only when given, so standalone artifact prompts are unchanged. The
+// system prompt ranks it below the item writing rules and the style guide
+// and above the project custom instructions (content focus only).
+function renderSteeringBlock(project, perGenerationPrompt, blockContext) {
+  const lines = [
     `═══ PROJECT STYLE GUIDE ═══`,
     project.styleGuide?.trim() || '(none provided)',
     ``,
@@ -59,7 +67,15 @@ function renderSteeringBlock(project, perGenerationPrompt) {
     ``,
     `═══ PER-GENERATION PROMPT ═══`,
     perGenerationPrompt?.trim() || '(none provided)',
-  ].join('\n')
+  ]
+  if (blockContext) {
+    lines.push('', `═══ BLOCK CONTEXT (this block only) ═══`)
+    if (blockContext.placement) lines.push(`Placement: ${blockContext.placement}`)
+    if (blockContext.focus) lines.push(`Focus: ${blockContext.focus}`)
+    if (blockContext.sourceSection) lines.push(`Source section: ${blockContext.sourceSection}`)
+    if (blockContext.notes) lines.push(`Notes: ${blockContext.notes}`)
+  }
+  return lines.join('\n')
 }
 
 // Experience level is Novice / Practicing / Expert. Sources saved before
@@ -90,4 +106,4 @@ function renderLearnerContextBlock(context) {
   ].join('\n')
 }
 
-module.exports = { buildPromptContext }
+module.exports = { buildPromptContext, normalizeExperience }
