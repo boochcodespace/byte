@@ -146,7 +146,7 @@ async function main() {
     await go(`${base}/sources/${PRIMARY}`)
     for (let i = 0; i < await page.locator('.artifact-item').count(); i++) { await page.locator('.artifact-item').nth(i).click(); await page.waitForTimeout(250); check(`no exposed emoji or arrows: source artifact #${i}`, (await exposedEmoji()).length === 0, await exposedEmoji()) }
     await go(PREV)
-    await page.locator('[aria-hidden="false"] .flipcard-flip').first().click(); await page.waitForTimeout(500)
+    await page.locator('.flipcard.flipped .flipcard-back .flipcard-flip, .flipcard:not(.flipped) .flipcard-front .flipcard-flip').first().click(); await page.waitForTimeout(500)
     check('no exposed emoji on the flipped card', (await exposedEmoji()).length === 0, await exposedEmoji())
     const kc = page.locator('.lesson-artifact:has(.kc)'); await kc.locator('.kc-option').first().click()
     check('no exposed arrows on "Next question" (the button name has no arrow)', (await exposedEmoji()).length === 0 && /^Next question\s*$/.test((await kc.locator('.kc-actions .btn').evaluate(b => (b.innerText || '').replace(/→/, ''))).trim()) )

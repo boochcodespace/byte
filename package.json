@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "concurrently --names \"frontend,backend\" --prefix-colors \"cyan,yellow\" \"npm run dev --prefix frontend\" \"npm run dev --prefix backend\"",
     "install:all": "npm install && npm install --prefix frontend && npm install --prefix backend",
-    "test:a11y": "node tests/run-a11y.js",
-    "test:a11y:setup": "npm install --prefix tests && npm run setup --prefix tests"
+    "test:a11y": "node tests/run.js a11y",
+    "test:a11y:setup": "npm install --prefix tests && npm run setup --prefix tests",
+    "test:all": "node tests/run.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

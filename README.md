@@ -147,20 +147,49 @@ inaccessible content by default).
   level, and acronyms, with a **Fix** button for each. Use **Preview as learner**
   to see exactly what a learner gets.
 - **Run the accessibility tests** (axe on every page and artifact state in both
-  views, keyboard-only runs, and API checks):
-
-  ```bash
-  npm run test:a11y:setup   # first time only: installs the test packages and Chromium
-  npm run test:a11y         # stop `npm run dev` first; uses ports 3001 and 5173
-  ```
-
-  `npm run test:a11y -- api` runs only the API files and `-- ui` only the browser
-  files. The tests use a mock AI model and a throwaway folder, so they cost nothing
-  and never touch your real `~/Byte` data.
+  views, keyboard-only runs, and API checks): `npm run test:a11y`. See
+  [Testing](#testing) for setup and the other commands.
 - **Docs** (in `docs/accessibility/`): `conformance.md` (every WCAG 2.2 A and AA
   criterion with status and evidence), `voiceover-checklist.md` (manual screen
   reader steps), and `design-pass-requirements.md` (minimums any restyle must keep).
 - `CLAUDE.md` holds the definition of done for contributors.
+
+## Testing
+
+Byte has one test setup in `tests/`. It uses a fake AI model and a throwaway
+folder, so it costs nothing and never touches your real `~/Byte` data. It also
+refuses to start if `npm run dev` is using ports 3001 or 5173, so stop the app
+first.
+
+First time only (installs the test packages and downloads Chromium, about 150 MB):
+
+```bash
+npm run test:a11y:setup
+```
+
+Then:
+
+```bash
+npm run test:all                  # every suite, accessibility included
+npm run test:all -- lessons       # one area: a11y, lessons, artifacts, settings, providers
+npm run test:all -- api           # only API files (no browser, fastest)
+npm run test:all -- ui            # only browser files
+npm run test:all -- a11y ui       # an area and a kind together
+npm run test:all -- --list        # show what would run, without running it
+npm run test:a11y                 # shortcut for the accessibility area
+```
+
+| Area | What it checks |
+|---|---|
+| `a11y` | WCAG 2.2 AA: axe on every state in the authoring and learner views, keyboard-only runs, the lesson accessibility checker, alt text |
+| `lessons` | The lesson workflow, text editing, regenerate, move and insert, and that artifact progress survives edits |
+| `artifacts` | Knowledge check and scenario renderers and generation, item quality, option shuffling |
+| `settings` | The Settings page and provider presets |
+| `providers` | The AI provider layer, key handling, and that keys never reach logs |
+
+Files named `api-*.test.js` need no browser. Files named `ui-*.test.js` drive
+Chromium. To use a Chromium or Chrome you already have, set `BYTE_TEST_CHROMIUM`
+to its path. A full run takes about 25 minutes; `-- api` takes about 2.
 
 ## Smoke Test
 

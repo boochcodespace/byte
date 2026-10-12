@@ -69,7 +69,7 @@ async function main() {
 
     console.log('=== AUTHORING LESSON PAGE ===')
     await go(AUTH); await scan('authoring: initial')
-    await page.locator('[aria-hidden="false"] .flipcard-flip').first().click(); await page.waitForTimeout(500); await scan('authoring: flip card flipped')
+    await page.locator('.flipcard.flipped .flipcard-back .flipcard-flip, .flipcard:not(.flipped) .flipcard-front .flipcard-flip').first().click(); await page.waitForTimeout(500); await scan('authoring: flip card flipped')
     const kcA = page.locator('.lesson-artifact:has(.kc)'); await kcA.locator('.kc-option').first().click(); await scan('authoring: KC answered')
     const scA = page.locator('.lesson-artifact:has(.scenario)'); await scA.locator('.scenario-choice').first().click(); await scan('authoring: scenario feedback')
     await go(AUTH)
@@ -87,9 +87,12 @@ async function main() {
 
     console.log('=== LEARNER PREVIEW ===')
     await go(PREV); await scan('preview: initial')
+    check('flip card: the side that is not showing is hidden from screen readers (aria-hidden and inert), so the answer is not read before the learner flips the card',
+      await page.evaluate(() => { const b = document.querySelector('.flipcard-back'); return !!b && b.getAttribute('aria-hidden') === 'true' && b.hasAttribute('inert') }),
+      'The back of the flip card is exposed to screen readers. Put aria-hidden and inert back on .flipcard-back while the card is face up (frontend/src/artifact-renderers/flip-card-deck/Renderer.jsx).')
     const flip = page.locator('.flipcard-deck')
-    await flip.locator('[aria-hidden="false"] .flipcard-flip').click(); await page.waitForTimeout(500); await scan('preview: flip card flipped')
-    await flip.locator('[aria-hidden="false"] .flipcard-flip').click(); await page.waitForTimeout(500)
+    await flip.locator('.flipcard.flipped .flipcard-back .flipcard-flip, .flipcard:not(.flipped) .flipcard-front .flipcard-flip').click(); await page.waitForTimeout(500); await scan('preview: flip card flipped')
+    await flip.locator('.flipcard.flipped .flipcard-back .flipcard-flip, .flipcard:not(.flipped) .flipcard-front .flipcard-flip').click(); await page.waitForTimeout(500)
     await flip.locator('button:has-text("Next card")').click(); await page.waitForTimeout(500); await scan('preview: flip card 2 front')
     const kc = page.locator('.lesson-artifact:has(.kc)')
     await scan('preview: KC unanswered')

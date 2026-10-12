@@ -6,7 +6,8 @@ const path = require('path')
 const http = require('http')
 const { spawn } = require('child_process')
 
-const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'byte-a11y-'))
+const env = require('../../support/env')
+const HOME = env.HOME
 const API = 'http://127.0.0.1:3001/api'
 const MOCK = 'http://127.0.0.1:4010'
 const P = 'getting-started'
@@ -153,54 +154,11 @@ async function newApprovedLesson(extra = {}) {
 
 
 
-// ── environment: mock model, backend, and (for browser suites) the Vite dev server ──
-const children = []
-const REPO = path.resolve(__dirname, '..', '..', '..')
-
-async function assertPortFree(url, what) {
-  let up = false
-  try { await fetch(url); up = true } catch { /* nothing is listening, good */ }
-  if (up) throw new Error(`${what} is already running (${url}). Stop \`npm run dev\` before running the accessibility suite.`)
-}
-
-async function startEnv({ ui }) {
-  await assertPortFree('http://127.0.0.1:3001/api/health', 'The Byte backend')
-  if (ui) await assertPortFree('http://localhost:5173/', 'The Byte frontend')
-  await new Promise(r => mock.listen(4010, r))
-  // A throwaway HOME, so the suite never touches the real ~/Byte folder.
-  children.push(spawn('node', ['server.js'], { cwd: path.join(REPO, 'backend'), env: { ...process.env, HOME }, stdio: 'ignore', detached: true }))
-  if (ui) children.push(spawn('npx', ['vite', '--port', '5173', '--strictPort'], { cwd: path.join(REPO, 'frontend'), env: process.env, stdio: 'ignore', detached: true }))
-  await waitFor(API + '/health')
-  if (ui) await waitFor(APP + '/')
-}
-
-async function stopEnv() {
-  // Each child leads its own process group (npx starts Vite as a grandchild),
-  // so kill the whole group, then wait for the ports to come free.
-  for (const c of children) { try { process.kill(-c.pid, 'SIGTERM') } catch { /* already gone */ } }
-  children.length = 0
-  try { mock.close() } catch { /* already closed */ }
-  for (let i = 0; i < 40; i++) {
-    let busy = false
-    for (const u of ['http://127.0.0.1:3001/api/health', 'http://localhost:5173/']) { try { await fetch(u); busy = true } catch { /* free */ } }
-    if (!busy) break
-    await sleep(250)
-  }
-  fs.rmSync(HOME, { recursive: true, force: true })
-}
-
-function findChromium() {
-  if (process.env.BYTE_TEST_CHROMIUM) return process.env.BYTE_TEST_CHROMIUM
-  return undefined   // playwright-core's own download (npm run test:a11y:setup)
-}
-
-async function launchBrowser() {
-  try {
-    return await chromium.launch({ executablePath: findChromium() })
-  } catch (err) {
-    throw new Error('Chromium is not installed for the test suite. Run: npm run test:a11y:setup\n' + err.message)
-  }
-}
+// ── environment (shared with every suite: tests/support/env.js) ──
+const REPO = env.REPO
+const startEnv = ({ ui }) => env.startEnv({ ui, mock })
+const stopEnv = () => env.stopEnv(mock)
+const launchBrowser = () => env.launchBrowser()
 
 function counts() { return { pass, fail } }
 function finish() {

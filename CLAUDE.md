@@ -25,18 +25,24 @@ accessible content and must never generate inaccessible content by default.
    evidence for anything new.
 5. **New or changed tests are in the suite.** A fix without a test that would
    fail without it is not done.
+6. **`npm run test:all` passes**: every suite, not just the accessibility one.
 
-Run the whole accessibility suite with one command from the repo root:
+Run the tests from the repo root:
 
 ```
-npm run test:a11y          # everything
-npm run test:a11y -- api   # API files only
-npm run test:a11y -- ui    # browser files only
+npm run test:all                 # every suite (about 25 minutes)
+npm run test:all -- api          # API files only, no browser (about 2 minutes)
+npm run test:all -- lessons ui   # one area, one kind (areas: a11y, lessons, artifacts, settings, providers)
+npm run test:a11y                # the accessibility area only
+npm run test:all -- --list       # show what would run
 ```
 
-Stop `npm run dev` first. The suite needs ports 3001 and 5173 and uses a
+Stop `npm run dev` first. The suites need ports 3001 and 5173 and use a
 throwaway home folder, so your real `~/Byte` is never touched. First time only:
 `npm run test:a11y:setup` (installs the test packages and downloads Chromium).
+New test files go in `tests/<area>/` and are named `api-*.test.js` (no browser) or
+`ui-*.test.js` (browser); use `tests/support/env.js` for the mock model, throwaway
+home, and port guard.
 
 If a test fails, fix the product. Do not loosen a test, skip a state, or add an
 axe `disableRules` exception to get a green run. If a rule truly does not apply,
