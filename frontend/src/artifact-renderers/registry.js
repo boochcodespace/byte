@@ -63,4 +63,4 @@ export function getTypeMeta(type) {
 }
 
 // Artifact types that have a text editor. Each editor lands in its own commit.
-export const EDITABLE_ARTIFACT_TYPES = new Set(['knowledge-check'])
+export const EDITABLE_ARTIFACT_TYPES = new Set(['knowledge-check', 'flip-card-deck'])

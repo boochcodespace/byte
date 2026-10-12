@@ -77,7 +77,7 @@ async function main() {
     const idD = await draft(); await accept(idD, 'flip-card-deck', oldDeck)
     r = await rep(idD)
     const dm = find(r, 'deck-missing-alt-text')
-    check('a deck with a visual but no alt text is flagged (warning, fix = regenerate)', dm.length === 1 && dm[0].severity === 'warning' && dm[0].fix === 'regenerate' && /flip card deck/.test(dm[0].where), dm)
+    check('a deck with a visual but no alt text is flagged (warning, fix = edit)', dm.length === 1 && dm[0].severity === 'warning' && dm[0].fix === 'edit' && /flip card deck/.test(dm[0].where), dm)
     check('the deck is still not rendered or changed', JSON.parse(fs.readFileSync(path.join(artDir(oldDeck.folder), 'artifact.json'), 'utf-8')).alt_text === undefined)
 
     console.log('Headings')

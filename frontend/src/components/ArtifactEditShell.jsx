@@ -6,6 +6,7 @@ import { getTypeMeta } from '../artifact-renderers/registry'
 import LoadingState from './LoadingState'
 import ErrorState from './ErrorState'
 import KnowledgeCheckEditor from './KnowledgeCheckEditor'
+import FlipDeckEditor from './FlipDeckEditor'
 
 // Everything around an artifact editor: loading the artifact, the warning when
 // other lessons use it, saving, and errors. The editor itself (one per type)
@@ -27,7 +28,7 @@ import KnowledgeCheckEditor from './KnowledgeCheckEditor'
 //   onCopy()                       make a copy (the page does the work and
 //                                  re-mounts this shell on the copy); may be async
 
-const EDITORS = { 'knowledge-check': KnowledgeCheckEditor }
+const EDITORS = { 'knowledge-check': KnowledgeCheckEditor, 'flip-card-deck': FlipDeckEditor }
 
 function ArtifactEditShell({ projectSlug, source, folder, lessonId, focusQuestion, onSaved, onCancel, onCopy }) {
   const url = `/api/projects/${projectSlug}/artifacts/${source}/${folder}`
@@ -117,6 +118,7 @@ function ArtifactEditShell({ projectSlug, source, folder, lessonId, focusQuestio
         onSave={save}
         onCancel={onCancel}
         focusQuestion={focusQuestion}
+        onDraftAlt={brief => api.post(`${url}/alt-text/draft`, { visual: brief })}
       />
     </div>
   )

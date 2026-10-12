@@ -99,10 +99,71 @@ function mergeKnowledgeCheck(current, edits) {
   return out
 }
 
+// ── flip card deck ──────────────────────────────────────────────────────
+
+const CARD_CAP = 1000
+const VISUAL_CAPS = { visual: 3000, alt_text: 2000, long_description: 8000, decorative_reason: 500 }
+
+// The deck's visual: a description (the brief), alt text, an optional long
+// description, or "decorative" with a reason. A decorative visual keeps only its
+// reason; a described one is never decorative.
+function mergeVisual(out, edits) {
+  const field = (key, label, cap) => {
+    const v = str(edits[key])
+    if (v.length > cap) throw validation(`${label} can be up to ${cap.toLocaleString('en-US')} characters.`)
+    return v
+  }
+  const has = k => edits[k] !== undefined
+  if (!(has('visual_anchor_description') || has('alt_text') || has('long_description') || has('decorative') || has('decorative_reason'))) return
+  const visual = has('visual_anchor_description') ? field('visual_anchor_description', 'The visual description', VISUAL_CAPS.visual) : str(out.visual_anchor_description)
+  for (const k of ['alt_text', 'long_description', 'decorative', 'decorative_reason']) delete out[k]
+  if (!visual) { delete out.visual_anchor_description; return }   // no visual, so no alternative
+  out.visual_anchor_description = visual
+  if (edits.decorative === true) {
+    out.decorative = true
+    const reason = field('decorative_reason', 'The reason', VISUAL_CAPS.decorative_reason)
+    if (reason) out.decorative_reason = reason
+    return
+  }
+  const alt = field('alt_text', 'The alt text', VISUAL_CAPS.alt_text)
+  if (alt) out.alt_text = alt
+  const long = field('long_description', 'The long description', VISUAL_CAPS.long_description)
+  if (long) out.long_description = long
+}
+
+// A deck that describes a visual needs alt text, or a decorative reason.
+function visualProblem(artifact) {
+  if (typeOf(artifact) !== 'flip-card-deck') return ''
+  if (!str(artifact.visual_anchor_description)) return ''
+  if (artifact.decorative === true) return str(artifact.decorative_reason) ? '' : 'Say why the visual is decorative, or write alt text for it.'
+  return str(artifact.alt_text) ? '' : "This deck describes a visual, so it needs alt text. Write it, or mark the visual as decorative with a reason."
+}
+
+function mergeFlipDeck(current, edits) {
+  const out = JSON.parse(JSON.stringify(current))
+  if (edits.cards !== undefined) {
+    if (!Array.isArray(edits.cards) || edits.cards.length !== current.cards.length) {
+      throw validation('You can edit the words on each card, but not add or remove cards yet.')
+    }
+    edits.cards.forEach((e, i) => {
+      for (const [key, label] of [['front', 'the front'], ['back', 'the back']]) {
+        if (e[key] === undefined) continue
+        const v = str(e[key])
+        if (!v) throw validation(`Card ${i + 1}: ${label} cannot be empty.`)
+        if (v.length > CARD_CAP) throw validation(`Card ${i + 1}: ${label} can be up to ${CARD_CAP.toLocaleString('en-US')} characters.`)
+        out.cards[i][key] = v
+      }
+    })
+  }
+  mergeVisual(out, edits)
+  return out
+}
+
 // ── dispatch ────────────────────────────────────────────────────────────
 
 const MERGERS = {
   'knowledge-check': mergeKnowledgeCheck,
+  'flip-card-deck': mergeFlipDeck,
 }
 
 // The words that count as an edit: everything except bookkeeping.
@@ -110,7 +171,11 @@ const BOOKKEEPING = ['edited', 'edited_at', 'copied_from', 'folder']
 function content(artifact) {
   const copy = { ...artifact }
   for (const k of BOOKKEEPING) delete copy[k]
-  return JSON.stringify(copy)
+  // key order must not matter: rewriting a field can move it to the end
+  const sorted = v => (Array.isArray(v) ? v.map(sorted)
+    : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, sorted(v[k])]))
+    : v)
+  return JSON.stringify(sorted(copy))
 }
 
 function requireArtifact(projectSlug, source, folder) {
@@ -139,6 +204,7 @@ function readEditable(projectSlug, source, folder) {
     artifact: { folder, ...artifact },
     type: typeOf(artifact),
     needs_key: needsKey(artifact),
+    needs_alt: !!visualProblem(artifact),
     usage: usageOf(projectSlug, source, folder),
     editable: !!MERGERS[typeOf(artifact)],
   }
@@ -156,6 +222,9 @@ function saveEdits(projectSlug, source, folder, edits) {
   // The key rule comes first so the message is plain, not a schema error.
   const problems = needsKey(merged)
   if (problems.length) throw validation(keyMessage(problems))
+
+  const vp = visualProblem(merged)
+  if (vp) throw validation(vp)
 
   const valid = validatorFor(type)(merged)
   if (!valid) {

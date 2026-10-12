@@ -266,6 +266,29 @@ Open a knowledge check, then press **Edit** ("Edit knowledge check").
 - [ ] **Learner preview.** The edited words are read; nothing says "edited", "needs a
       key", or shows a letter as the key.
 
+### Flip card deck editor (source page and lessons)
+
+Open a flip card deck, then press **Edit** ("Edit flip card deck"). The shared warning, copy,
+focus, and Save steps are the same as for the knowledge check editor above; check these as well.
+
+- [ ] **Deck visual.** A section "Deck visual" (a heading in the rotor) holds the visual note,
+      a "Text alternative" group (the decorative checkbox, "Alt text" with its character count,
+      "Long description") and a "Generate alt text" button. "Generate alt text" announces
+      "Draft from Byte. Review and edit it, then save. It is not saved yet."
+- [ ] **Needs alt text.** An older deck with a visual and no alt text opens with "Needs alt text."
+      Press **Save changes**: an alert reads "Save is blocked. The deck describes a visual, so it
+      needs alt text…" and focus moves to that line. Tick "This visual is decorative" with no
+      reason: the alert says "Say why the visual is decorative."
+- [ ] **Cards.** Each card is a section with a heading and one button, read as "Card 1: <front>,
+      Hook, 1 writing note, expanded". The fields read "Card 1: Front" and "Card 1: Back".
+      Collapse and expand work as in the knowledge check editor.
+- [ ] **Writing advice.** Under each card, "Writing advice for card 1 (advice only, never blocks
+      saving)" lists notes such as a front that gives away its back, more than 20 words on a
+      front or 25 on a back, or "see the previous card".
+- [ ] **From the accessibility checker.** A deck with a visual and no alt text is listed as a
+      warning. Its Fix button opens the editor with focus inside it.
+- [ ] **Learner preview.** The edited words are read on the card; nothing mentions editing.
+
 ### Context panel and pickers
 
 - [ ] "Steer this block" opens with focus in the first field. Experience level and counts

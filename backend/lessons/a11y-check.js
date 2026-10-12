@@ -227,9 +227,9 @@ function checkLesson(lesson, artifacts) {
     // ── flip decks used in the lesson ───────────────────────────────
     if (b.kind === 'artifact' && b.artifact_type === 'flip-card-deck' && artifact
         && artifact.visual_anchor_description && !artifact.alt_text && !artifact.decorative) {
-      push({ rule: 'deck-missing-alt-text', severity: 'warning', blockId: b.id, where, fix: 'regenerate',
+      push({ rule: 'deck-missing-alt-text', severity: 'warning', blockId: b.id, where, fix: 'edit',
         key: `deck-missing-alt-text:${b.id}:${b.ref.artifact}`,
-        message: 'This flip card deck describes a visual but has no alt text. Regenerate it, or replace it with a newer deck, which includes alt text.' })
+        message: 'This flip card deck describes a visual but has no alt text. Open the editor to add it (or mark the visual decorative with a reason), or regenerate the deck, which includes alt text.' })
     }
 
     // ── knowledge checks used in the lesson ─────────────────────────

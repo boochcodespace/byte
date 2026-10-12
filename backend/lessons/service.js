@@ -936,14 +936,20 @@ function copyBlockArtifact(projectSlug, lessonId, blockId) {
 async function draftAltText(projectSlug, lessonId, body, llmConfig) {
   requireProject(projectSlug)
   const lesson = requireLesson(projectSlug, lessonId)
-  const visual = str(body?.visual)
+  return draftAltTextFor({ topic: lesson.topic, objective: lesson.objective, visual: body?.visual }, llmConfig)
+}
+
+// The draft itself, for any visual brief: a lesson's chunk or tab, or a saved
+// artifact's own visual. Saves nothing.
+async function draftAltTextFor({ topic, objective, visual: rawVisual }, llmConfig) {
+  const visual = str(rawVisual)
   if (!visual) throw validation('Write the visual note first. The alt text is drafted from it.')
   if (visual.length > TEXT_LIMITS.visual) throw validation(`The visual note can be up to ${TEXT_LIMITS.visual.toLocaleString('en-US')} characters.`)
 
   const parsed = await generateValidated({
     key: 'lesson-alt-text',
     schema: altTextSchema,
-    userPrompt: altTextPrompt({ topic: lesson.topic, objective: lesson.objective, visual }),
+    userPrompt: altTextPrompt({ topic, objective, visual }),
     llmConfig,
     maxTokens: 900,
   })
@@ -1179,6 +1185,7 @@ module.exports = {
   setA11yReview,
   a11yExportBlockers,
   draftAltText,
+  draftAltTextFor,
   insertBlock,
   removeBlock,
 }

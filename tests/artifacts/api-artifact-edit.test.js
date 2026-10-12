@@ -192,11 +192,11 @@ async function main() {
     await put(f3, fixed3)
     check('once each question has a key the warnings are gone', (await api('GET', `${L}/${idK}/a11y`)).data.issues.filter(i => i.rule === 'knowledge-check-no-key').length === 0)
 
-    console.log('Other artifact types are not editable yet')
-    await api('POST', GEN, { artifactType: 'flip-card-deck' })
-    const deck = (await api('GET', `${A}?type=flip-card-deck`)).data[0]
-    check('a flip deck reports editable:false', (await get(deck.folder)).data.editable === false)
-    check('saving a flip deck → a plain "not available yet" message', (await put(deck.folder, { items: [] })).userMessage === 'Editing this kind of artifact is not available yet.')
+    console.log('The scenario editor is not here yet')
+    await sleep(5); await api('POST', GEN, { artifactType: 'scenario-branching' })
+    const scen = (await api('GET', `${A}?type=scenario-branching`)).data[0]
+    check('a scenario reports editable:false until its editor lands', (await get(scen.folder)).data.editable === false)
+    check('saving a scenario → a plain "not available yet" message', (await put(scen.folder, { nodes: [] })).userMessage === 'Editing this kind of artifact is not available yet.')
 
     console.log('Item-writing notes (advisory)')
     const { checkItem, keyCount } = await import(path.join(REPO, 'frontend', 'src', 'lib', 'itemChecks.mjs'))
