@@ -17,6 +17,7 @@ function ProjectDetail() {
 
   const [project, setProject] = useState(null)
   const [sources, setSources] = useState([])
+  const [lessons, setLessons] = useState([])
 
   // Editable sidebar fields — each panel has its own independent save state.
   const [styleGuide, setStyleGuide] = useState('')
@@ -43,13 +44,16 @@ function ProjectDetail() {
 
   const loadProject = useCallback(async () => {
     const data = await loadAction.run(async () => {
-      const [proj, srcs] = await Promise.all([
+      const [proj, srcs, lessonList] = await Promise.all([
         api.get(`/api/projects/${projectSlug}`),
         api.get(`/api/projects/${projectSlug}/sources`),
+        // The lessons list is a convenience; the page still works without it.
+        api.get(`/api/projects/${projectSlug}/lessons`).catch(() => []),
       ])
-      return { proj, srcs }
+      return { proj, srcs, lessonList }
     })
     if (!data) return
+    setLessons(Array.isArray(data.lessonList) ? data.lessonList : [])
     setProject(data.proj)
     setStyleGuide(data.proj.styleGuide || '')
     setCustomInstructions(data.proj.customInstructions || '')
@@ -149,6 +153,35 @@ function ProjectDetail() {
 
       <div className="source-detail-layout">
         <div className="source-main">
+          <div className="card lessons-panel">
+            <div className="lessons-panel-head">
+              <h2>Lessons</h2>
+              <Link to={`/projects/${projectSlug}/lessons/new`} className="btn btn-primary btn-sm">
+                + New lesson
+              </Link>
+            </div>
+            {lessons.length === 0 ? (
+              <p className="sidebar-help">
+                A lesson turns a topic and your sources into one short, text-first document you can
+                add flip cards, knowledge checks, and scenarios to.
+              </p>
+            ) : (
+              lessons.map(l => (
+                <Link key={l.id} to={`/projects/${projectSlug}/lessons/${l.id}`} className="lesson-row">
+                  <span className="lesson-row-title">{l.title}</span>
+                  <span className="lesson-row-meta">
+                    {l.status === 'drafted' ? 'Drafted' : l.status === 'approved' ? 'Blueprint approved' : 'Blueprint'}
+                  </span>
+                  {l.status === 'drafted' && (
+                    <span className={`lesson-row-meta ${l.over_budget ? 'lesson-row-over' : ''}`}>
+                      {l.total_minutes} / {l.time_budget_minutes} min{l.over_budget ? ' · over' : ''}
+                    </span>
+                  )}
+                </Link>
+              ))
+            )}
+          </div>
+
           {sources.length === 0 ? (
             <div className="empty-state">
               <p>No sources yet. Click <strong>+ Add source</strong> to get started.</p>
