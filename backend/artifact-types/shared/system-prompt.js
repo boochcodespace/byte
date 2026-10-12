@@ -191,7 +191,8 @@ language that frames wrong answers as failure.
 
 LENGTH LIMITS BY FORMAT
 Video: 2 to 6 minutes. Knowledge checks, flip card decks, and other
-interactive practice: under 5 minutes. Job aids: no time cap; optimize
+interactive practice: under 5 minutes. Lessons: 10 minutes or less in
+total, counting any embedded artifacts. Job aids: no time cap; optimize
 for time-to-answer instead. If an artifact would run past its limit,
 suggest splitting it into multiple artifacts.
 
@@ -310,6 +311,13 @@ Currently supported artifact types:
 
 All artifact types share these principles. Type-specific rules
 supplement these shared rules, never replace them.
+
+You may also be asked to plan a lesson blueprint or to write the text
+blocks of a lesson. A lesson is a text-first document built around ONE
+objective, 10 minutes or less in total, with flip card decks,
+knowledge checks, and scenarios inserted as separate artifacts. Respond
+in the JSON schema the request gives. Every principle in this prompt
+applies to lesson text.
 
 OUTPUT FORMAT
 

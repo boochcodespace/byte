@@ -17,8 +17,24 @@
 // still asks for variety, and forbids rationales that point at options
 // by letter, since letters change when the renderer shuffles.
 
-function promptTemplate(ctx /* , extras — knowledge-check has none today */) {
+// Item limit: standalone checks keep the 4-to-6 / 3-to-4 sizing. The
+// lesson generator passes extras.maxItems (3 inside lessons) to keep the
+// whole lesson inside its time budget. Clamped to 2 to 6.
+function resolveMaxItems(extras = {}) {
+  const v = extras.maxItems
+  if (v === undefined || v === null || v === '') return null
+  const n = Number(v)
+  if (!Number.isInteger(n)) return null
+  return Math.min(6, Math.max(2, n))
+}
+
+function promptTemplate(ctx, extras = {}) {
   const { sourceContent, steeringBlock, learnerContextBlock, objectivesBlock } = ctx
+  const maxItems = resolveMaxItems(extras)
+  const itemSizing = maxItems === null
+    ? `- 4 to 6 items when the source is rich
+- 3 to 4 items when the source is thin (do not pad)`
+    : `- At most ${maxItems} items (fewer when the source is thin; do not pad)`
 
   return `Generate a knowledge check from the following source content. This is \
 SECONDARY content creation: treat the source as reference material to \
@@ -38,8 +54,7 @@ ${sourceContent}
 ═══ REQUIREMENTS ═══
 
 SIZING
-- 4 to 6 items when the source is rich
-- 3 to 4 items when the source is thin (do not pad)
+${itemSizing}
 - Single-best-answer multiple choice only
 - Each item takes the learner under 120 seconds
 - Total completion time under 5 minutes
@@ -196,4 +211,4 @@ ambiguities in the source)"
 }`
 }
 
-module.exports = { promptTemplate }
+module.exports = { promptTemplate, resolveMaxItems }

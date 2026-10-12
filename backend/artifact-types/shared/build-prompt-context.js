@@ -90,4 +90,4 @@ function renderLearnerContextBlock(context) {
   ].join('\n')
 }
 
-module.exports = { buildPromptContext }
+module.exports = { buildPromptContext, normalizeExperience }
