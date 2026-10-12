@@ -42,8 +42,8 @@ function TimeMeter({ lesson }) {
           <strong>{total}</strong> of {budget} min
         </span>
         <span className="time-meter-breakdown">
-          Text {lesson.text_minutes} · Artifacts {lesson.artifact_minutes}
-          {' · '}Recall {lesson.recall_minutes} (day 2, 7, 21, not counted)
+          Text {lesson.text_minutes}{' '}<span aria-hidden="true"> · </span>{' '}Artifacts {lesson.artifact_minutes}
+          {' '}<span aria-hidden="true"> · </span>{' '}Recall {lesson.recall_minutes} (day 2, 7, 21, not counted)
         </span>
       </div>
       <div

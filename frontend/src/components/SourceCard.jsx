@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 function SourceCard({ source, projectSlug }) {
   return (
     <Link to={`/projects/${projectSlug}/sources/${source.slug}`} className="source-card">
-      <div className="source-card-icon">📄</div>
+      <div className="source-card-icon" aria-hidden="true">📄</div>
       <div className="source-card-body">
         <h2>{source.title}</h2>
         {source.artifactCount > 0 && (

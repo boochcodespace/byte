@@ -12,6 +12,7 @@ import ContextPanel from '../components/ContextPanel'
 import { TextBlock, TextEditor, ArtifactBlock } from '../components/LessonBlocks'
 import { TabsBlock, TabsEditor } from '../components/TabsBlock'
 import InsertControl from '../components/InsertControl'
+import AccessibilityChecker from '../components/AccessibilityChecker'
 import { ARTIFACT_TYPE_OPTIONS } from '../artifact-renderers/registry'
 import './Lesson.css'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -246,6 +247,18 @@ function LessonDetail() {
   const closeEdit = id => { setEditFor(null); pendingFocus.current = `edit:${id}` }
   const closeContext = id => { setContextFor(null); pendingFocus.current = `regen:${id}` }
   const closePicker = id => { setPickerFor(null); pendingFocus.current = `regen:${id}` }
+  // The checker's Fix button: go to the block and open what fixes the issue.
+  const [, setFixTick] = useState(0)
+  const fixIssue = issue => {
+    const block = issue.blockId ? lesson.blocks.find(b => b.id === issue.blockId) : null
+    if (!block) { pendingFocus.current = 'page-title'; setFixTick(t => t + 1); return }
+    closeAll()
+    const editable = (block.kind === 'chunk' || (block.kind === 'tabs' && block.state === 'ready')) && issue.fix === 'edit'
+    if (editable) { setEditFor(block.id); return }
+    pendingFocus.current = `regen:${block.id}`
+    setFixTick(t => t + 1)
+  }
+
   const closeAll = () => { setPickerFor(null); setContextFor(null); setEditFor(null); setInsertFlow(null) }
   const openContext = block => { closeAll(); setContextFor(block.id) }
   const openPicker = block => { closeAll(); setPickerFor(block.id) }
@@ -603,9 +616,9 @@ function LessonDetail() {
     <div className="lesson-page">
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link to="/">Projects</Link>
-        <span className="breadcrumb-sep">›</span>
+        <span className="breadcrumb-sep" aria-hidden="true">›</span>
         <Link to={`/projects/${projectSlug}`}>{projectSlug}</Link>
-        <span className="breadcrumb-sep">›</span>
+        <span className="breadcrumb-sep" aria-hidden="true">›</span>
         <span>{lesson.title}</span>
       </nav>
 
@@ -850,6 +863,7 @@ function LessonDetail() {
       {lesson.status === 'drafted' && (
         <>
           <TimeMeter lesson={lesson} />
+          <AccessibilityChecker base={base} stamp={lesson.updated_at} onFix={fixIssue} disabled={blockAction.loading} />
           <div className="sr-only" role="status" aria-live="polite">{announce}</div>
           <div className="lesson-blocks">
             {lesson.blocks.map(block => (

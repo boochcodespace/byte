@@ -71,8 +71,8 @@ function ArtifactPicker({ projectSlug, type, currentRef, onPick, onCancel }) {
               <div className="picker-item-text">
                 <div className="picker-item-title">{item.title || `${label} (no objective saved)`}</div>
                 <div className="picker-item-meta">
-                  From {item.sourceTitle} · {formatDate(item.createdAt)}
-                  {item.edited ? ' · edited' : ''}
+                  From {item.sourceTitle}{' '}<span aria-hidden="true"> · </span>{' '}{formatDate(item.createdAt)}
+                  {item.edited ? <>{' '}<span aria-hidden="true"> · </span>{' '}edited</> : ''}
                 </div>
               </div>
               <button

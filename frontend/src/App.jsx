@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import ProjectsPage from './pages/ProjectsPage'
 import ProjectDetail from './pages/ProjectDetail'
@@ -18,6 +18,30 @@ function App() {
   // authoring header.
   const isPreview = location.pathname.endsWith('/preview')
 
+  // Route changes (WCAG 2.4.3, 4.1.3): when the user moves to another page,
+  // focus goes to that page's h1 (or the main region) and a polite live
+  // region says which page it is. The page sets its own title once its data
+  // has loaded, so wait for a real title and an h1, up to three seconds.
+  const [routeMessage, setRouteMessage] = useState('')
+  const lastPath = useRef(location.pathname)   // compared by value so React's dev double-run cannot trigger it
+  useEffect(() => {
+    if (lastPath.current === location.pathname) return
+    lastPath.current = location.pathname
+    setRouteMessage('')
+    let tries = 0
+    const timer = setInterval(() => {
+      tries += 1
+      const h1 = document.querySelector('main h1')
+      if ((h1 && document.title !== 'Byte') || tries > 30) {
+        clearInterval(timer)
+        const target = h1 || mainRef.current
+        if (target) { target.setAttribute('tabindex', '-1'); target.focus() }
+        setRouteMessage(`Now on ${document.title.replace(/ — Byte$/, '')}.`)
+      }
+    }, 100)
+    return () => clearInterval(timer)
+  }, [location.pathname])
+
   // The skip link: move focus to <main>. Done by hand so the router does
   // not treat the hash as a page change.
   function skipToMain(e) {
@@ -28,6 +52,7 @@ function App() {
 
   return (
     <div className="app">
+      <div className="sr-only" role="status" aria-live="polite">{routeMessage}</div>
       <a href="#main" className="skip-link" onClick={skipToMain}>Skip to main content</a>
       {!isPreview && (
       <header className="app-header">

@@ -149,9 +149,9 @@ function SourceDetail() {
     <div className="source-detail">
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link to="/">Projects</Link>
-        <span className="breadcrumb-sep">›</span>
+        <span className="breadcrumb-sep" aria-hidden="true">›</span>
         <Link to={`/projects/${projectSlug}`}>{projectSlug}</Link>
-        <span className="breadcrumb-sep">›</span>
+        <span className="breadcrumb-sep" aria-hidden="true">›</span>
         <span>{source.title}</span>
       </nav>
 
@@ -201,7 +201,7 @@ function SourceDetail() {
                       aria-pressed={selectedArtifact === artifact}
                       onClick={() => setSelectedArtifact(artifact)}
                     >
-                      <span className="artifact-item-icon">{meta.icon}</span>
+                      <span className="artifact-item-icon" aria-hidden="true">{meta.icon}</span>
                       <span>
                         <span className="artifact-item-type">{meta.label}</span>
                       </span>
@@ -341,7 +341,7 @@ function SourceDetail() {
               onClick={handleGenerate}
               disabled={generateAction.loading}
             >
-              {generateAction.loading ? '✨ Generating...' : '✨ Generate'}
+              <span aria-hidden="true">✨ </span>{generateAction.loading ? 'Generating...' : 'Generate'}
             </button>
 
             {generateAction.loading && (

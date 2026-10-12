@@ -10,7 +10,7 @@ function ProjectCard({ project }) {
 
   return (
     <Link to={`/projects/${project.slug}`} className="project-card">
-      <div className="project-card-icon">📁</div>
+      <div className="project-card-icon" aria-hidden="true">📁</div>
       <div className="project-card-body">
         <h2>{project.title}</h2>
         {project.description && (

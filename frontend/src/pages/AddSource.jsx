@@ -133,9 +133,9 @@ function AddSource() {
     <div className="add-source-page">
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link to="/">Projects</Link>
-        <span className="breadcrumb-sep">›</span>
+        <span className="breadcrumb-sep" aria-hidden="true">›</span>
         <Link to={`/projects/${projectSlug}`}>{projectSlug}</Link>
-        <span className="breadcrumb-sep">›</span>
+        <span className="breadcrumb-sep" aria-hidden="true">›</span>
         <span>Add source</span>
       </nav>
 
@@ -213,7 +213,7 @@ function AddSource() {
 
                 {selectedFile ? (
                   <>
-                    <span className="upload-zone-icon">✅</span>
+                    <span className="upload-zone-icon" aria-hidden="true">✅</span>
                     <div className="upload-zone-file-info">
                       <span className="upload-zone-filename">{selectedFile.name}</span>
                       <span className="upload-zone-filesize">{formatFileSize(selectedFile.size)}</span>
@@ -229,7 +229,7 @@ function AddSource() {
                   </>
                 ) : (
                   <>
-                    <span className="upload-zone-icon">📂</span>
+                    <span className="upload-zone-icon" aria-hidden="true">📂</span>
                     <p className="upload-zone-label">
                       Drop a file here, or click to browse
                     </p>

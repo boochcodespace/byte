@@ -143,7 +143,7 @@ function Renderer({ artifact }) {
 
       <div className="kc-progress" ref={topRef} tabIndex={-1}>
         Question {index + 1} of {items.length}
-        {artifact.estimated_minutes ? ` · ~${artifact.estimated_minutes} min` : ''}
+        {artifact.estimated_minutes ? <>{' '}<span aria-hidden="true"> · </span>{' '}About {artifact.estimated_minutes} min</> : ''}
       </div>
 
       {item.scenario && <p className="kc-scenario">{item.scenario}</p>}
@@ -189,7 +189,7 @@ function Renderer({ artifact }) {
                 className="btn btn-primary"
                 onClick={handleNext}
               >
-                {isLast ? 'See results →' : 'Next question →'}
+                {isLast ? 'See results' : 'Next question'} <span aria-hidden="true">→</span>
               </button>
             </div>
           </div>

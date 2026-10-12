@@ -310,7 +310,7 @@ export function ArtifactBlock({
     return (
       <div className="lesson-block lesson-artifact">
         <div className="lesson-label">
-          {meta.icon} {meta.label}
+          <span aria-hidden="true">{meta.icon}</span> {meta.label}
           <span className="lesson-minutes">{block.minutes} min</span>
         </div>
         {/* The renderer owns the learner's progress. It only resets if
@@ -337,12 +337,13 @@ export function ArtifactBlock({
   if (block.unavailable || (block.state === 'ready' && !artifact)) {
     return (
       <div className="lesson-block lesson-unavailable">
-        <div className="lesson-label">{meta.icon} {meta.label}</div>
+        <div className="lesson-label"><span aria-hidden="true">{meta.icon}</span> {meta.label}</div>
         <p>
           This artifact is no longer available. Your lesson is unchanged and nothing was deleted.
         </p>
         <div className="lesson-actions">
           <button type="button" className="btn btn-primary btn-sm" onClick={onPickExisting} disabled={locked}
+            data-focus-key={`regen:${block.id}`}
             aria-label={label ? `Pick another for ${label}` : undefined}>
             Pick another
           </button>
@@ -362,12 +363,13 @@ export function ArtifactBlock({
   return (
     <div className="lesson-block lesson-proposal">
       <div className="lesson-label">
-        {meta.icon} Suggested: {meta.label}
+        <span aria-hidden="true">{meta.icon}</span> Suggested: {meta.label}
         <span className="lesson-minutes">about {block.minutes} min</span>
       </div>
       <p className="lesson-proposal-note">{block.placement_note}</p>
       <div className="lesson-actions">
         <button type="button" className="btn btn-primary btn-sm" onClick={onGenerate} disabled={locked}
+          data-focus-key={`regen:${block.id}`}
           aria-label={label ? `Generate for this lesson: ${label}` : undefined}>
           Generate for this lesson
         </button>

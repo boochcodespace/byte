@@ -116,7 +116,7 @@ function Renderer({ artifact }) {
         <>
           <div className="scenario-progress" ref={topRef} tabIndex={-1}>
             Decision {path.length + 1}
-            {artifact.estimated_minutes ? ` · ~${artifact.estimated_minutes} min` : ''}
+            {artifact.estimated_minutes ? <>{' '}<span aria-hidden="true"> · </span>{' '}About {artifact.estimated_minutes} min</> : ''}
           </div>
 
           <p className="scenario-situation">{node.situation}</p>
@@ -151,7 +151,7 @@ function Renderer({ artifact }) {
                     className="btn btn-primary"
                     onClick={handleContinue}
                   >
-                    Continue →
+                    Continue <span aria-hidden="true">→</span>
                   </button>
                   <button
                     type="button"

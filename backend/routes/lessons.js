@@ -15,6 +15,8 @@
 //   PUT    /:lessonId/blocks/:blockId/text     edit a text block inline
 //   POST   /:lessonId/blocks/:blockId/text/generate  rewrite a text block
 //   POST   /:lessonId/alt-text/draft          draft alt text from a visual brief (saves nothing)
+//   GET    /:lessonId/a11y                     accessibility check (on demand)
+//   PUT    /:lessonId/a11y/reviews            mark an issue reviewed (reason required) or undo
 //   POST   /:lessonId/blocks/:blockId/move    swap with a neighbour (up|down)
 //   DELETE /:lessonId/blocks/:blockId          remove a block (an artifact
 //                                              itself stays; not the last hook)
@@ -219,6 +221,25 @@ router.post('/:lessonId/alt-text/draft', async (req, res) => {
     return sendOk(res, await service.draftAltText(projectSlug, lessonId, req.body || {}, llmConfig))
   } catch (err) {
     return fail(res, 'lessons:alt-text', err)
+  }
+})
+
+// The accessibility checker (runs on demand) and its reviews.
+router.get('/:lessonId/a11y', (req, res) => {
+  try {
+    checkIds(req)
+    return sendOk(res, service.a11yReport(req.params.projectSlug, req.params.lessonId))
+  } catch (err) {
+    return fail(res, 'lessons:a11y', err)
+  }
+})
+
+router.put('/:lessonId/a11y/reviews', (req, res) => {
+  try {
+    checkIds(req)
+    return sendOk(res, service.setA11yReview(req.params.projectSlug, req.params.lessonId, req.body || {}))
+  } catch (err) {
+    return fail(res, 'lessons:a11y-review', err)
   }
 })
 

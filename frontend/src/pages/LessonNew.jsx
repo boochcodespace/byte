@@ -78,9 +78,9 @@ function LessonNew() {
     <div className="lesson-new-page">
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link to="/">Projects</Link>
-        <span className="breadcrumb-sep">›</span>
+        <span className="breadcrumb-sep" aria-hidden="true">›</span>
         <Link to={`/projects/${projectSlug}`}>{projectSlug}</Link>
-        <span className="breadcrumb-sep">›</span>
+        <span className="breadcrumb-sep" aria-hidden="true">›</span>
         <span>New lesson</span>
       </nav>
 

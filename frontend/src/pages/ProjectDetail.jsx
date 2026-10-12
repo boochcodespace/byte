@@ -101,7 +101,7 @@ function ProjectDetail() {
     <div className="project-detail">
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link to="/">Projects</Link>
-        <span className="breadcrumb-sep">›</span>
+        <span className="breadcrumb-sep" aria-hidden="true">›</span>
         <span>{project.title}</span>
       </nav>
 
@@ -224,7 +224,7 @@ function ProjectDetail() {
                 onClick={() => saveField('styleGuide', styleGuide, styleAction, setSavedStyle)}
                 disabled={styleAction.loading}
               >
-                {savedStyle ? 'Saved ✓' : styleAction.loading ? 'Saving...' : 'Save'}
+                {savedStyle ? <>Saved <span aria-hidden="true">✓</span></> : styleAction.loading ? 'Saving...' : 'Save'}
               </button>
               <span className="sr-only" role="status">{savedStyle ? 'Style guide saved.' : ''}</span>
               {styleAction.error && (
@@ -261,7 +261,7 @@ function ProjectDetail() {
                 onClick={() => saveField('customInstructions', customInstructions, instructionsAction, setSavedInstructions)}
                 disabled={instructionsAction.loading}
               >
-                {savedInstructions ? 'Saved ✓' : instructionsAction.loading ? 'Saving...' : 'Save'}
+                {savedInstructions ? <>Saved <span aria-hidden="true">✓</span></> : instructionsAction.loading ? 'Saving...' : 'Save'}
               </button>
               <span className="sr-only" role="status">{savedInstructions ? 'Custom instructions saved.' : ''}</span>
               {instructionsAction.error && (
@@ -296,7 +296,7 @@ function ProjectDetail() {
                 onClick={() => saveField('targetAudience', targetAudience, audienceAction, setSavedAudience)}
                 disabled={audienceAction.loading}
               >
-                {savedAudience ? 'Saved ✓' : audienceAction.loading ? 'Saving...' : 'Save'}
+                {savedAudience ? <>Saved <span aria-hidden="true">✓</span></> : audienceAction.loading ? 'Saving...' : 'Save'}
               </button>
               <span className="sr-only" role="status">{savedAudience ? 'Target audience saved.' : ''}</span>
               {audienceAction.error && (

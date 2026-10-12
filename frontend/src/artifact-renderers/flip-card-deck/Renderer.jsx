@@ -26,10 +26,12 @@ import './Renderer.css'
 // backward compatibility works: older artifacts with dead fields
 // render cleanly.
 
+// The text is the label; the emoji is decoration and is hidden from
+// screen readers.
 const TYPE_LABEL = {
-  hook:    '🎣 Hook',
-  content: '📚 Content',
-  apply:   '✅ Apply Today',
+  hook:    { icon: '🎣', text: 'Hook' },
+  content: { icon: '📚', text: 'Content' },
+  apply:   { icon: '✅', text: 'Apply Today' },
 }
 
 function Renderer({ artifact }) {
@@ -94,7 +96,13 @@ function Renderer({ artifact }) {
 
   if (!card) return <p>No cards in this deck.</p>
 
-  const badge = TYPE_LABEL[card.type] ?? card.type
+  const label = TYPE_LABEL[card.type] ?? { icon: '', text: card.type }
+  const badge = (
+    <>
+      {label.icon && <span aria-hidden="true">{label.icon} </span>}
+      {label.text}
+    </>
+  )
 
   return (
     <div className="flipcard-deck" role="group" aria-label="Flip card deck" onKeyDown={handleKeyDown}>

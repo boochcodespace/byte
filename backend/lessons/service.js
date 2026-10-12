@@ -25,6 +25,7 @@ const { getTypeModule } = require('../artifact-types/registry')
 const store = require('./store')
 const { loadSources, assertWithinCap } = require('./sources')
 const { computeLesson } = require('./time')
+const { buildReport, exportBlockers } = require('./a11y-check')
 const { blueprintPrompt, textPrompt, tabsPrompt, textBlockPrompt, altTextPrompt } = require('./prompts')
 const { validation, notFound } = require('./errors')
 const blueprintSchema = require('./schemas/blueprint.schema.json')
@@ -932,6 +933,49 @@ async function draftAltText(projectSlug, lessonId, body, llmConfig) {
   return { draft: cleanAltFields({ alt_text: parsed.alt_text, long_description: parsed.long_description }, { strict: false }) }
 }
 
+// ── accessibility check ──────────────────────────────────────────────
+
+function a11yReport(projectSlug, lessonId) {
+  requireProject(projectSlug)
+  const lesson = requireLesson(projectSlug, lessonId)
+  if (lesson.status !== 'drafted') throw validation('Write the lesson text first. There is nothing to check yet.')
+  const presented = presentLesson(projectSlug, lesson)
+  return buildReport(presented.lesson, presented.artifacts)
+}
+
+// Mark an issue as reviewed, with a reason, or (with an empty reason) undo
+// the review. Only an issue the lesson has right now can be reviewed, and
+// stale reviews are dropped on every save.
+function setA11yReview(projectSlug, lessonId, body) {
+  requireProject(projectSlug)
+  const lesson = requireLesson(projectSlug, lessonId)
+  if (lesson.status !== 'drafted') throw validation('Write the lesson text first.')
+  const presented = presentLesson(projectSlug, lesson)
+  const issues = buildReport(presented.lesson, presented.artifacts).issues
+  const key = str(body?.key)
+  const issue = issues.find(i => i.key === key)
+  if (!issue) throw notFound('That issue is no longer in the lesson. Run the check again.')
+
+  const reason = str(body?.reason)
+  if (reason.length > 500) throw validation('The reason can be up to 500 characters.')
+  const live = new Set(issues.map(i => i.key))
+  // An empty reason undoes an existing review; it can never create one.
+  if (!reason && !issue.reviewed) throw validation('Say why this is fine. A reason is required to mark an issue as reviewed.')
+  const reviews = (lesson.a11y_reviews || []).filter(r => live.has(r.key) && r.key !== key)
+  if (reason) reviews.push({ key, reason, reviewed_at: new Date().toISOString() })
+  lesson.a11y_reviews = reviews
+  store.writeLesson(projectSlug, lesson)
+  const again = presentLesson(projectSlug, lesson)
+  return buildReport(again.lesson, again.artifacts)
+}
+
+// For any future export: the open errors that block it.
+function a11yExportBlockers(projectSlug, lessonId) {
+  const lesson = requireLesson(projectSlug, lessonId)
+  const presented = presentLesson(projectSlug, lesson)
+  return exportBlockers(presented.lesson, presented.artifacts)
+}
+
 // ── move ─────────────────────────────────────────────────────────────
 
 // Where a block may go. The hook stays first. Recall prompts stay at the
@@ -1113,6 +1157,9 @@ module.exports = {
   editTextBlock,
   generateTextBlock,
   moveBlock,
+  a11yReport,
+  setA11yReview,
+  a11yExportBlockers,
   draftAltText,
   insertBlock,
   removeBlock,
