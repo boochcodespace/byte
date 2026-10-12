@@ -6,6 +6,7 @@ import { actionPropsFor } from '../lib/errorActions'
 import LoadingState from '../components/LoadingState'
 import ErrorState from '../components/ErrorState'
 import './Lesson.css'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 // LessonNew: start a lesson from a topic and one or more project sources.
 //
@@ -15,6 +16,7 @@ import './Lesson.css'
 // lesson and then asks the model for a blueprint. If the blueprint call
 // fails the lesson still exists; the lesson page offers a Retry.
 function LessonNew() {
+  usePageTitle('New lesson')
   const { projectSlug } = useParams()
   const navigate = useNavigate()
 
@@ -74,7 +76,7 @@ function LessonNew() {
 
   return (
     <div className="lesson-new-page">
-      <nav className="breadcrumb">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link to="/">Projects</Link>
         <span className="breadcrumb-sep">›</span>
         <Link to={`/projects/${projectSlug}`}>{projectSlug}</Link>
@@ -83,7 +85,7 @@ function LessonNew() {
       </nav>
 
       <div className="card add-source-form">
-        <h2>New lesson</h2>
+        <h1>New lesson</h1>
         <p className="sidebar-help">
           A lesson is a short text-first document with one objective. You can add flip cards,
           knowledge checks, and scenarios to it afterwards.

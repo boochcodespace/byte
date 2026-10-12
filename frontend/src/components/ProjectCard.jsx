@@ -12,7 +12,7 @@ function ProjectCard({ project }) {
     <Link to={`/projects/${project.slug}`} className="project-card">
       <div className="project-card-icon">📁</div>
       <div className="project-card-body">
-        <h3>{project.title}</h3>
+        <h2>{project.title}</h2>
         {project.description && (
           <p className="project-card-description">{project.description}</p>
         )}

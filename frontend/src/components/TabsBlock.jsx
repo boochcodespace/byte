@@ -24,7 +24,7 @@ const MAX_TABS = 5
 const SOFT_TAB_WORDS = 50
 const wordsIn = t => (t.trim() ? t.trim().split(/\s+/).length : 0)
 
-function TabsView({ block }) {
+export function TabsView({ block, learner = false }) {
   const baseId = useId()
   const [selected, setSelected] = useState(0)
   const tabRefs = useRef([])
@@ -76,7 +76,7 @@ function TabsView({ block }) {
           className="lesson-tabpanel"
         >
           <div className="lesson-body"><Paragraphs text={t.body} /></div>
-          <VisualDisplay item={t} />
+          <VisualDisplay item={t} learner={learner} />
         </div>
       ))}
     </div>
@@ -115,7 +115,7 @@ export function TabsEditor({ initial, onSave, onCancel, busy, saveLabel = 'Save'
       <div className="form-group">
         <label>
           Block heading <span className="label-optional">(optional)</span>
-          <input type="text" value={title} maxLength={120} onChange={e => setTitle(e.target.value)} disabled={busy} />
+          <input type="text" value={title} maxLength={120} onChange={e => setTitle(e.target.value)} disabled={busy} autoFocus />
         </label>
       </div>
 
@@ -178,7 +178,7 @@ export function TabsEditor({ initial, onSave, onCancel, busy, saveLabel = 'Save'
 //   onGenerate                 open the context panel (parent renders it)
 //   onRemove
 //   children                   the context panel and/or an error, below the block
-export function TabsBlock({ block, busy, disabled, editing, onEdit, onSave, onCancelEdit, onGenerate, onRemove, removeMessage, onDraftAlt, children }) {
+export function TabsBlock({ block, busy, disabled, editing, onEdit, onSave, onCancelEdit, onGenerate, onRemove, removeMessage, onDraftAlt, label, children }) {
   const locked = busy || disabled
   const spinner = busy && (
     <LoadingState subtle message="Working on your tabs..." hint="This may take up to 30 seconds." />
@@ -196,13 +196,17 @@ export function TabsBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
           <TabsEditor initial={{ title: '', tabs: [] }} onSave={onSave} onCancel={onCancelEdit} busy={busy} saveLabel="Save tabs" onDraftAlt={onDraftAlt} />
         ) : (
           <div className="lesson-actions">
-            <button type="button" className="btn btn-primary btn-sm" onClick={onGenerate} disabled={locked}>
+            <button type="button" className="btn btn-primary btn-sm" onClick={onGenerate} disabled={locked}
+              data-focus-key={`regen:${block.id}`}
+              aria-label={label ? `Generate tabs for ${label}` : undefined}>
               Generate tabs
             </button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={onEdit} disabled={locked}>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onEdit} disabled={locked}
+              data-focus-key={`edit:${block.id}`}
+              aria-label={label ? `Write it myself: ${label}` : undefined}>
               Write it myself
             </button>
-            <RemoveControl onRemove={onRemove} locked={locked} message={removeMessage || 'Remove this suggestion from the lesson?'} />
+            <RemoveControl onRemove={onRemove} locked={locked} label={label} message={removeMessage || 'Remove this suggestion from the lesson?'} />
           </div>
         )}
         {spinner}
@@ -218,7 +222,7 @@ export function TabsBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
         {block.edited && <span className="lesson-badge">Edited by you</span>}
         <span className="lesson-minutes">{block.minutes} min</span>
       </div>
-      {block.title && <h3 className="lesson-chunk-title">{block.title}</h3>}
+      {block.title && <h2 className="lesson-chunk-title">{block.title}</h2>}
 
       {editing ? (
         <TabsEditor initial={block} onSave={onSave} onCancel={onCancelEdit} busy={busy} onDraftAlt={onDraftAlt} />
@@ -229,15 +233,20 @@ export function TabsBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
             <p className="lesson-proposal-note">Generated with: {contextSummary(block.generation_context)}</p>
           )}
           <div className="lesson-actions">
-            <button type="button" className="btn btn-secondary btn-sm" onClick={onEdit} disabled={locked}>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onEdit} disabled={locked}
+              data-focus-key={`edit:${block.id}`}
+              aria-label={label ? `Edit ${label}` : undefined}>
               Edit
             </button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={locked}>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={locked}
+              data-focus-key={`regen:${block.id}`}
+              aria-label={label ? `Regenerate ${label}` : undefined}>
               Regenerate
             </button>
             <RemoveControl
               onRemove={onRemove}
               locked={locked}
+              label={label}
               message={removeMessage || (block.edited
                 ? 'Remove this tabs block? Your edits will be lost.'
                 : 'Remove this tabs block from the lesson?')}

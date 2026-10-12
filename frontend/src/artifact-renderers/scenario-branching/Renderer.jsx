@@ -40,6 +40,8 @@ function Renderer({ artifact }) {
   const [deadEnd, setDeadEnd] = useState(false)
 
   const continueRef = useRef(null)
+  const topRef = useRef(null)      // decision counter / ending heading, focused after moving on
+  const moved = useRef(false)
   const orders = useRef(new Map())   // nodeId → shuffled order of its choices
 
   // Start over whenever a different artifact is passed in
@@ -57,6 +59,12 @@ function Renderer({ artifact }) {
     if (picked !== null) continueRef.current?.focus()
   }, [picked])
 
+  // After Continue or Try again, focus moves to the new decision or the
+  // ending, so the learner is not left on a button that is gone.
+  useEffect(() => {
+    if (moved.current) { moved.current = false; topRef.current?.focus() }
+  }, [currentId, deadEnd])
+
   const node = byId.get(currentId)
   if (!node) return <p style={{ color: '#6b6b6b' }}>No scenario content in this artifact.</p>
 
@@ -73,6 +81,7 @@ function Renderer({ artifact }) {
     const next = chosen.next
     setPath(p => [...p, { text: chosen.text, quality: chosen.quality }])
     setPicked(null)
+    moved.current = true
     if (next && byId.has(next)) setCurrentId(next)
     else setDeadEnd(true)
   }
@@ -88,6 +97,7 @@ function Renderer({ artifact }) {
   }
 
   function restart() {
+    moved.current = true
     orders.current = new Map()
     setCurrentId(startId)
     setPicked(null)
@@ -104,7 +114,7 @@ function Renderer({ artifact }) {
 
       {!isEnd && (
         <>
-          <div className="scenario-progress">
+          <div className="scenario-progress" ref={topRef} tabIndex={-1}>
             Decision {path.length + 1}
             {artifact.estimated_minutes ? ` · ~${artifact.estimated_minutes} min` : ''}
           </div>
@@ -163,7 +173,7 @@ function Renderer({ artifact }) {
 
       {isEnd && (
         <div className="scenario-end">
-          <div className="scenario-label">How it played out</div>
+          <div className="scenario-label" ref={topRef} tabIndex={-1}>How it played out</div>
           <p className="scenario-situation">
             {node.kind === 'ending' ? node.situation : 'That is the end of this path.'}
           </p>

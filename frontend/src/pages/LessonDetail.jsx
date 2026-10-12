@@ -14,6 +14,7 @@ import { TabsBlock, TabsEditor } from '../components/TabsBlock'
 import InsertControl from '../components/InsertControl'
 import { ARTIFACT_TYPE_OPTIONS } from '../artifact-renderers/registry'
 import './Lesson.css'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 // LessonDetail: one lesson, from blueprint to finished document.
 //
@@ -86,6 +87,17 @@ function blockName(b) {
   return `the ${(ARTIFACT_NAME[b.artifact_type] || 'artifact').toLowerCase()}`
 }
 
+// The accessible name of a block, so repeated buttons (Edit, Remove, ...)
+// each say which block they act on, e.g. "Edit chunk: What does a host do?".
+function blockLabel(b) {
+  if (b.kind === 'chunk') return `chunk: ${b.title}`
+  if (b.kind === 'hook') return 'hook'
+  if (b.kind === 'apply') return 'apply block'
+  if (b.kind === 'recall') return `day ${b.recall_day} recall prompt`
+  if (b.kind === 'tabs') return b.title ? `tabs block: ${b.title}` : 'tabs block'
+  return (ARTIFACT_NAME[b.artifact_type] || 'artifact').toLowerCase()
+}
+
 const kindLabel = s =>
   s.kind === 'recall' ? `Recall · day ${s.recall_day}` : s.kind[0].toUpperCase() + s.kind.slice(1)
 
@@ -110,6 +122,7 @@ function LessonDetail() {
   const base = `/api/projects/${projectSlug}/lessons/${lessonId}`
 
   const [lesson, setLesson] = useState(null)
+  usePageTitle(lesson?.title)
   const [artifacts, setArtifacts] = useState({})
   const [draft, setDraft] = useState(null)
   const [notice, setNotice] = useState(location.state?.notice || null)
@@ -122,6 +135,8 @@ function LessonDetail() {
   const [insertFlow, setInsertFlow] = useState(null)      // { after, option, mode } while inserting
   const [recallDay, setRecallDay] = useState('')       // day chosen for an inserted recall prompt
   const [announce, setAnnounce] = useState('')           // screen-reader message after a move
+  const pendingFocus = useRef(null)                      // data-focus-key to focus after the next render
+  const openRef = useRef({})                             // which editor/panel/flow is open (for runBlock)
   const pendingMove = useRef(null)                       // { id, dir } to restore focus after a move
   const [limits, setLimits] = useState(null)             // in-lesson size limits from the API
 
@@ -198,6 +213,8 @@ function LessonDetail() {
 
   // ── block actions (accept / pick / dismiss) ────────────────────────
 
+  openRef.current = { editFor, contextFor, pickerFor, insertFlow }
+
   const runBlock = useCallback(async (blockId, fn) => {
     retryBlockRef.current = () => runBlock(blockId, fn)
     setFailedBlock(null)
@@ -206,6 +223,11 @@ function LessonDetail() {
     setActiveBlock(null)
     if (!resp) pendingMove.current = null
     if (resp) {
+      // Put keyboard focus back where the user was working.
+      const o = openRef.current
+      if (o.editFor === blockId) pendingFocus.current = `edit:${blockId}`
+      else if (o.contextFor === blockId || o.pickerFor === blockId) pendingFocus.current = `regen:${blockId}`
+      else if (o.insertFlow) pendingFocus.current = `insert:${o.insertFlow.after}`
       applyResponse(resp)
       setPickerFor(null)
       setContextFor(null)
@@ -214,12 +236,16 @@ function LessonDetail() {
     } else {
       setFailedBlock(blockId)
     }
+    return resp
   }, [blockAction, applyResponse])
 
   // Generate (or regenerate) with the context typed in the panel.
   const generateArtifact = (block, context) =>
     runBlock(block.id, () => api.post(`${base}/blocks/${block.id}/artifact`, { mode: 'new', context }))
   // Open the context panel / picker / editor for a block. Only one is open.
+  const closeEdit = id => { setEditFor(null); pendingFocus.current = `edit:${id}` }
+  const closeContext = id => { setContextFor(null); pendingFocus.current = `regen:${id}` }
+  const closePicker = id => { setPickerFor(null); pendingFocus.current = `regen:${id}` }
   const closeAll = () => { setPickerFor(null); setContextFor(null); setEditFor(null); setInsertFlow(null) }
   const openContext = block => { closeAll(); setContextFor(block.id) }
   const openPicker = block => { closeAll(); setPickerFor(block.id) }
@@ -254,8 +280,14 @@ function LessonDetail() {
       api.post(`${base}/blocks/${block.id}/text/generate`, { context, ...(block.edited ? { overwrite: true } : {}) }))
   const saveText = (block, payload) =>
     runBlock(block.id, () => api.put(`${base}/blocks/${block.id}/text`, payload))
-  const removeBlock = block =>
-    runBlock(block.id, () => api.delete(`${base}/blocks/${block.id}`))
+  const removeBlock = async block => {
+    const name = blockLabel(block)
+    const resp = await runBlock(block.id, () => api.delete(`${base}/blocks/${block.id}`))
+    if (resp) {
+      setAnnounce(`Removed ${name}.`)
+      pendingFocus.current = 'page-title'
+    }
+  }
 
   // After a move, put keyboard focus back on the button that was used (or
   // the other one if it just reached its limit) and tell screen readers.
@@ -271,6 +303,15 @@ function LessonDetail() {
     if (target) target.focus()
     setAnnounce(`Moved ${blockName(lesson.blocks[i])} ${m.dir}. It is now block ${i + 1} of ${lesson.blocks.length}.`)
   }, [lesson])
+
+  // Restore focus after an editor, panel, or flow closes (WCAG 2.4.3).
+  useEffect(() => {
+    const key = pendingFocus.current
+    if (!key) return
+    pendingFocus.current = null
+    const el = document.querySelector(`[data-focus-key="${key}"]`)
+    if (el && !el.disabled) el.focus()
+  })
 
   // ── draft editing helpers ──────────────────────────────────────────
 
@@ -323,12 +364,13 @@ function LessonDetail() {
       return (
         <TabsBlock
           block={block}
+          label={blockLabel(block)}
           busy={working}
           disabled={blockAction.loading}
           editing={editFor === block.id}
           onEdit={() => openEdit(block)}
           onSave={payload => saveTabs(block, payload)}
-          onCancelEdit={() => setEditFor(null)}
+          onCancelEdit={() => closeEdit(block.id)}
           onGenerate={() => openContext(block)}
           onDraftAlt={draftAlt}
           onRemove={() => removeBlock(block)}
@@ -348,7 +390,7 @@ function LessonDetail() {
                 ? 'Regenerating replaces the edits you made to this tabs block, and they cannot be recovered.'
                 : undefined}
               onSubmit={ctx => generateTabs(block, ctx)}
-              onCancel={() => setContextFor(null)}
+              onCancel={() => closeContext(block.id)}
             />
           )}
           {failed}
@@ -361,13 +403,14 @@ function LessonDetail() {
       return (
         <TextBlock
           block={block}
+          label={blockLabel(block)}
           busy={working}
           disabled={blockAction.loading}
           editing={editFor === block.id}
           canRemove={!lastHook}
           onEdit={() => openEdit(block)}
           onSave={payload => saveText(block, payload)}
-          onCancelEdit={() => setEditFor(null)}
+          onCancelEdit={() => closeEdit(block.id)}
           onGenerate={() => openContext(block)}
           onDraftAlt={draftAlt}
           onRemove={() => removeBlock(block)}
@@ -387,7 +430,7 @@ function LessonDetail() {
                 ? 'Regenerating replaces the edits you made to this block, and they cannot be recovered.'
                 : undefined}
               onSubmit={ctx => generateText(block, ctx)}
-              onCancel={() => setContextFor(null)}
+              onCancel={() => closeContext(block.id)}
             />
           )}
           {failed}
@@ -399,6 +442,7 @@ function LessonDetail() {
     return (
       <ArtifactBlock
         block={block}
+        label={blockLabel(block)}
         artifact={artifact}
         busy={working}
         disabled={blockAction.loading}
@@ -416,7 +460,7 @@ function LessonDetail() {
             busy={working}
             submitLabel={block.state === 'ready' ? 'Regenerate' : 'Generate'}
             onSubmit={ctx => generateArtifact(block, ctx)}
-            onCancel={() => setContextFor(null)}
+            onCancel={() => closeContext(block.id)}
           />
         )}
         {pickerFor === block.id && (
@@ -425,7 +469,7 @@ function LessonDetail() {
             type={block.artifact_type}
             currentRef={block.ref}
             onPick={ref => pickArtifact(block, ref)}
-            onCancel={() => setPickerFor(null)}
+            onCancel={() => closePicker(block.id)}
           />
         )}
         {failed}
@@ -438,7 +482,7 @@ function LessonDetail() {
     const key = insertKey(afterBlock.id)
     const working = activeBlock === key && blockAction.loading
     const { option, mode } = insertFlow
-    const cancel = () => setInsertFlow(null)
+    const cancel = () => { setInsertFlow(null); pendingFocus.current = `insert:${afterBlock.id}` }
     let ui = null
 
     if (TEXT_KINDS.includes(option.kind)) {
@@ -557,7 +601,7 @@ function LessonDetail() {
 
   return (
     <div className="lesson-page">
-      <nav className="breadcrumb">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link to="/">Projects</Link>
         <span className="breadcrumb-sep">›</span>
         <Link to={`/projects/${projectSlug}`}>{projectSlug}</Link>
@@ -566,10 +610,15 @@ function LessonDetail() {
       </nav>
 
       <div className="lesson-header">
-        <h1>{lesson.title}</h1>
+        <h1 tabIndex={-1} data-focus-key="page-title">{lesson.title}</h1>
         <span className={`lesson-status lesson-status-${lesson.status}`}>
           {noBlueprint ? 'Not planned yet' : STATUS_LABEL[lesson.status]}
         </span>
+        {lesson.status === 'drafted' && (
+          <Link to={`/projects/${projectSlug}/lessons/${lessonId}/preview`} className="btn btn-secondary btn-sm">
+            Preview as learner
+          </Link>
+        )}
       </div>
       {lesson.objective && (
         <p className="lesson-objective"><strong>Objective:</strong> {lesson.objective}</p>
@@ -833,6 +882,8 @@ function LessonDetail() {
                       </div>
                     )}
                     <InsertControl
+                      label={blockLabel(block)}
+                      focusKey={`insert:${block.id}`}
                       options={INSERT_OPTIONS}
                       disabled={blockAction.loading}
                       onSelect={choice => startInsert(block, choice)}

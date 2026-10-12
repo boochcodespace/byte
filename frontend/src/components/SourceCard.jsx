@@ -7,7 +7,7 @@ function SourceCard({ source, projectSlug }) {
     <Link to={`/projects/${projectSlug}/sources/${source.slug}`} className="source-card">
       <div className="source-card-icon">📄</div>
       <div className="source-card-body">
-        <h3>{source.title}</h3>
+        <h2>{source.title}</h2>
         {source.artifactCount > 0 && (
           <p className="source-card-meta">
             {source.artifactCount} artifact{source.artifactCount !== 1 ? 's' : ''} generated

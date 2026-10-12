@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 // InsertControl
 //
@@ -15,12 +15,23 @@ import { useState } from 'react'
 //   options   [{ id, label, modes: [{ id, label }] }]
 //   onSelect  ({ option, mode }) => void   called when a mode is chosen
 //   disabled  lock the control (another action is running)
+//   label     what the control follows, so every "Insert here" has a unique name
 
-function InsertControl({ options, onSelect, disabled }) {
+function InsertControl({ options, onSelect, disabled, label, focusKey }) {
   const [open, setOpen] = useState(false)
   const [option, setOption] = useState(null)
+  const openBtn = useRef(null)
+  const cameFromCancel = useRef(false)
+  const firstOption = useRef(null)
+  // Return focus to "Insert here" after Cancel; move focus to the first
+  // choice when the menu opens.
+  useEffect(() => {
+    if (!open && cameFromCancel.current) { cameFromCancel.current = false; openBtn.current?.focus() }
+    if (open && !option) firstOption.current?.focus()
+  }, [open, option])
 
-  function reset() {
+  function reset(fromCancel = false) {
+    cameFromCancel.current = fromCancel
     setOpen(false)
     setOption(null)
   }
@@ -30,8 +41,11 @@ function InsertControl({ options, onSelect, disabled }) {
       <div className="insert-control">
         <button
           type="button"
+          ref={openBtn}
+          data-focus-key={focusKey}
           className="btn btn-secondary btn-sm"
           aria-expanded="false"
+          aria-label={label ? `Insert here, after ${label}` : undefined}
           onClick={() => setOpen(true)}
           disabled={disabled}
         >
@@ -45,12 +59,12 @@ function InsertControl({ options, onSelect, disabled }) {
     return (
       <div className="insert-control" role="group" aria-label="Choose what to insert">
         <span>Insert:</span>
-        {options.map(o => (
-          <button key={o.id} type="button" className="btn btn-secondary btn-sm" onClick={() => setOption(o)} disabled={disabled}>
+        {options.map((o, i) => (
+          <button key={o.id} ref={i === 0 ? firstOption : undefined} type="button" className="btn btn-secondary btn-sm" onClick={() => setOption(o)} disabled={disabled}>
             {o.label}
           </button>
         ))}
-        <button type="button" className="btn btn-secondary btn-sm" onClick={reset}>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => reset(true)}>
           Cancel
         </button>
       </div>
@@ -74,7 +88,7 @@ function InsertControl({ options, onSelect, disabled }) {
       <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOption(null)}>
         Back
       </button>
-      <button type="button" className="btn btn-secondary btn-sm" onClick={reset}>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => reset(true)}>
         Cancel
       </button>
     </div>

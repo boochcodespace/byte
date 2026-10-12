@@ -119,10 +119,14 @@ export function VisualEditor({ scope = '', value, onChange, busy, onDraft }) {
 
 // What the lesson page shows. The text alternative is what a learner gets;
 // the brief stays for the author.
-export function VisualDisplay({ item }) {
+export function VisualDisplay({ item, learner = false }) {
   const id = useId()
   const [open, setOpen] = useState(false)
   if (!item.visual) return null
+
+  // A learner never sees the author's brief or any authoring flag. A
+  // decorative visual, or one with no alt text yet, is simply left out.
+  if (learner && (item.decorative || !item.alt_text)) return null
 
   if (item.decorative) {
     return (
@@ -163,7 +167,7 @@ export function VisualDisplay({ item }) {
           </div>
         </>
       )}
-      <p className="field-help">Brief for the author (not shown to learners): {item.visual}</p>
+      {!learner && <p className="field-help">Brief for the author (not shown to learners): {item.visual}</p>}
     </div>
   )
 }

@@ -4,15 +4,16 @@
 :root {
   --color-bg: #f8f7f4;
   --color-surface: #ffffff;
-  --color-border: #e2e0db;
+  --color-border: #e2e0db;          /* dividers only, not a boundary a user needs to see */
+  --color-border-strong: #8a8a8a;   /* control and card boundaries: 3:1 or more (WCAG 1.4.11) */
   --color-text-primary: #1a1a1a;
-  --color-text-secondary: #6b6b6b;
-  --color-text-muted: #9b9b9b;
+  --color-text-secondary: #444444;
+  --color-text-muted: #525252;
   --color-accent: #4f46e5;
   --color-accent-hover: #4338ca;
   --color-accent-light: #eef2ff;
-  --color-success: #16a34a;
-  --color-error: #dc2626;
+  --color-success: #166534;
+  --color-error: #b91c1c;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
@@ -151,7 +152,7 @@ code {
 .btn-secondary {
   background: var(--color-surface);
   color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -185,7 +186,7 @@ code {
 .form-group textarea,
 .form-group select {
   padding: 9px 12px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   font-size: 14px;
   font-family: var(--font-sans);
@@ -454,7 +455,11 @@ code {
   margin-bottom: 28px;
 }
 
+.add-source-form h1,
 .add-source-form h2 {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: normal;
   margin-bottom: 16px;
 }
 
@@ -504,7 +509,8 @@ code {
   min-width: 0;
 }
 
-.source-card-body h3 {
+.source-card-body h2 {
+  font-size: 15px;
   margin-bottom: 3px;
   white-space: nowrap;
   overflow: hidden;
@@ -573,7 +579,7 @@ code {
 .source-editor {
   width: 100%;
   padding: 12px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   font-size: 14px;
   font-family: var(--font-mono);
@@ -642,11 +648,21 @@ code {
   align-items: flex-start;
   gap: 12px;
   padding: 12px 14px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
+  /* now a real button */
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.artifact-item-icon,
+.artifact-item-type {
+  display: block;
 }
 
 .artifact-item:hover {
@@ -700,7 +716,7 @@ code {
   display: flex;
   gap: 14px;
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   padding: 18px;
   text-decoration: none;
@@ -729,7 +745,8 @@ code {
   gap: 4px;
 }
 
-.project-card-body h3 {
+.project-card-body h2 {
+  font-size: 15px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -865,7 +882,7 @@ code {
 .sidebar-textarea {
   width: 100%;
   padding: 9px 12px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-family: var(--font-sans);
@@ -903,3 +920,64 @@ code {
   letter-spacing: 0;
   margin-left: 4px;
 }
+
+
+/* ===================================================================
+   ACCESSIBILITY (WCAG 2.2 AA)
+   Minimum changes that pass; the later design pass must keep these:
+   - focus ring 3px, 3:1 or better, on every interactive element
+   - scroll-padding so a focused control is never hidden under the
+     sticky header and time meter (2.4.11)
+   - reduced motion
+   - skip link
+   =================================================================== */
+html {
+  scroll-padding-top: 170px;
+  scroll-padding-bottom: 24px;
+}
+
+*:focus-visible {
+  outline: 3px solid var(--color-accent) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 5px #ffffff !important;
+}
+
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -80px;
+  z-index: 1000;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  padding: 10px 16px;
+  border: 2px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+.skip-link:focus {
+  top: 8px;
+}
+
+/* Read by screen readers only (live-region announcements). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.app-main:focus-visible { outline: none !important; box-shadow: none !important; }

@@ -5,10 +5,12 @@ import { useAsyncAction } from '../hooks/useAsyncAction'
 import { actionPropsFor } from '../lib/errorActions'
 import LoadingState from '../components/LoadingState'
 import ErrorState from '../components/ErrorState'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 // ProjectsPage is the new home: a grid of projects + an inline form
 // to create a new project. Each project owns sources and a style guide.
 function ProjectsPage() {
+  usePageTitle('Projects')
   const [projects, setProjects] = useState([])
 
   const [showForm, setShowForm] = useState(false)

@@ -64,7 +64,7 @@ function ArtifactPicker({ projectSlug, type, currentRef, onPick, onCancel }) {
 
       {items && items.length > 0 && (
         <ul className="artifact-picker-list">
-          {items.map(item => {
+          {items.map((item, idx) => {
             const inUse = !!currentRef && currentRef.source === item.source && currentRef.artifact === item.folder
             return (
             <li key={`${item.source}/${item.folder}`} className="picker-item">
@@ -80,6 +80,8 @@ function ArtifactPicker({ projectSlug, type, currentRef, onPick, onCancel }) {
                 className="btn btn-primary btn-sm"
                 onClick={() => onPick({ source: item.source, folder: item.folder })}
                 disabled={inUse}
+                autoFocus={idx === 0 && !inUse}
+                aria-label={inUse ? undefined : `Use this ${label}: ${item.title || 'no objective saved'}, from ${item.sourceTitle}`}
               >
                 {inUse ? 'In this lesson' : 'Use this'}
               </button>

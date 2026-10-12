@@ -10,14 +10,33 @@
 // Props: lesson — the lesson as returned by the API, with total_minutes,
 // text_minutes, artifact_minutes, recall_minutes, over_budget and
 // time_budget_minutes.
+//
+// Accessibility: the meter is an ESTIMATE FOR AUTHORS, never a time limit
+// for learners. It is not a live region, so it does not chatter on every
+// edit. The bar has a name and a text value, so a screen reader user can
+// read the total on demand. A polite live region speaks only when the
+// lesson goes over budget or comes back under it.
+
+import { useEffect, useRef, useState } from 'react'
 
 function TimeMeter({ lesson }) {
   const { total_minutes: total, time_budget_minutes: budget, over_budget: over } = lesson
   const pct = Math.min(100, Math.round((total / budget) * 100))
   const overBy = Math.round((total - budget) * 10) / 10
+  const [announcement, setAnnouncement] = useState('')
+  const wasOver = useRef(over)
+
+  useEffect(() => {
+    if (over === wasOver.current) return
+    wasOver.current = over
+    setAnnouncement(over
+      ? `The lesson is now over its time budget: ${total} of ${budget} minutes.`
+      : `The lesson is back within its time budget: ${total} of ${budget} minutes.`)
+  }, [over, total, budget])
 
   return (
-    <div className={`time-meter ${over ? 'time-meter-over' : ''}`} role="status" aria-live="polite">
+    <div className={`time-meter ${over ? 'time-meter-over' : ''}`}>
+      <div className="sr-only" role="status" aria-live="polite">{announcement}</div>
       <div className="time-meter-top">
         <span className="time-meter-label">
           <strong>{total}</strong> of {budget} min
@@ -30,9 +49,11 @@ function TimeMeter({ lesson }) {
       <div
         className="time-meter-bar"
         role="progressbar"
+        aria-label="Lesson time estimate, for authors"
         aria-valuemin={0}
         aria-valuemax={budget}
-        aria-valuenow={total}
+        aria-valuenow={Math.min(total, budget)}
+        aria-valuetext={`${total} of ${budget} minutes${over ? ', over budget' : ''}`}
       >
         <div className="time-meter-fill" style={{ width: `${pct}%` }} />
       </div>

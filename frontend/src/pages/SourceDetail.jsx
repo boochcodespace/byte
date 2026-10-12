@@ -11,6 +11,7 @@ import { useAsyncAction } from '../hooks/useAsyncAction'
 import { actionPropsFor } from '../lib/errorActions'
 import LoadingState from '../components/LoadingState'
 import ErrorState from '../components/ErrorState'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 // Experience level is Novice / Practicing / Expert. Sources saved before
 // the rename hold the old four-level values; map them for display so
@@ -39,6 +40,7 @@ function SourceDetail() {
   const sourceUrl = `/api/projects/${projectSlug}/sources/${slug}`
 
   const [source, setSource] = useState(null)
+  usePageTitle(source?.title)
   const [content, setContent] = useState('')
   const [context, setContext] = useState({
     role: '',
@@ -145,7 +147,7 @@ function SourceDetail() {
 
   return (
     <div className="source-detail">
-      <nav className="breadcrumb">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link to="/">Projects</Link>
         <span className="breadcrumb-sep">›</span>
         <Link to={`/projects/${projectSlug}`}>{projectSlug}</Link>
@@ -159,7 +161,7 @@ function SourceDetail() {
         <div className="source-main">
           <div className="card">
             <div className="card-header">
-              <h2>Source content</h2>
+              <h2 id="source-content-h">Source content</h2>
               <button
                 className="btn btn-secondary btn-sm"
                 onClick={handleSave}
@@ -169,6 +171,8 @@ function SourceDetail() {
               </button>
             </div>
             <textarea
+              id="source-content"
+              aria-labelledby="source-content-h"
               className="source-editor"
               value={content}
               onChange={e => setContent(e.target.value)}
@@ -190,16 +194,18 @@ function SourceDetail() {
                 {source.artifacts.map((artifact, i) => {
                   const meta = getTypeMeta(artifact.type || DEFAULT_TYPE)
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={artifact.folder || i}
                       className={`artifact-item ${selectedArtifact === artifact ? 'active' : ''}`}
+                      aria-pressed={selectedArtifact === artifact}
                       onClick={() => setSelectedArtifact(artifact)}
                     >
-                      <div className="artifact-item-icon">{meta.icon}</div>
-                      <div>
-                        <div className="artifact-item-type">{meta.label}</div>
-                      </div>
-                    </div>
+                      <span className="artifact-item-icon">{meta.icon}</span>
+                      <span>
+                        <span className="artifact-item-type">{meta.label}</span>
+                      </span>
+                    </button>
                   )
                 })}
               </div>
@@ -228,8 +234,8 @@ function SourceDetail() {
             </p>
 
             <div className="form-group">
-              <label>Role</label>
-              <input
+              <label htmlFor="src-role">Role</label>
+              <input id="src-role"
                 type="text"
                 placeholder="e.g. Team Lead, Sales Rep, New Hire"
                 value={context.role || ''}
@@ -238,8 +244,8 @@ function SourceDetail() {
             </div>
 
             <div className="form-group">
-              <label>Experience level</label>
-              <select
+              <label htmlFor="src-experience-level">Experience level</label>
+              <select id="src-experience-level"
                 value={context.experience || ''}
                 onChange={e => setContext(c => ({ ...c, experience: e.target.value }))}
               >
@@ -251,8 +257,8 @@ function SourceDetail() {
             </div>
 
             <div className="form-group">
-              <label>Use case</label>
-              <input
+              <label htmlFor="src-use-case">Use case</label>
+              <input id="src-use-case"
                 type="text"
                 placeholder="e.g. Preparing for a difficult conversation"
                 value={context.useCase || ''}
@@ -282,8 +288,8 @@ function SourceDetail() {
             <h2>Generate artifact</h2>
 
             <div className="form-group">
-              <label>Artifact type</label>
-              <select
+              <label htmlFor="src-artifact-type">Artifact type</label>
+              <select id="src-artifact-type"
                 value={artifactType}
                 onChange={e => setArtifactType(e.target.value)}
                 disabled={generateAction.loading}

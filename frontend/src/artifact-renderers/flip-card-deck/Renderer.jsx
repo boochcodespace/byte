@@ -1,24 +1,44 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import './Renderer.css'
 
 // Flip Card Deck renderer.
 //
-// Interactions:
-//   Click card   — flip between front and back
-//   ← →  keys   — navigate previous / next card
-//   Space key    — flip current card
-//   Dot nav      — jump to any card directly
+// Interactions (all work with the keyboard alone):
+//   Reveal answer / Show question   real buttons inside each card face
+//   Previous / Next                 buttons below the card
+//   Card 1, Card 2 ...              buttons that jump to a card
+//   Left and right arrow keys       move between cards while focus is in the deck
+//
+// Accessibility:
+//   - Only the side being shown is exposed to assistive technology. The
+//     other face is aria-hidden and inert, so the answer is not read out
+//     before it is revealed.
+//   - A polite live region announces the new card and the revealed side.
+//   - After a flip, focus moves to the button on the side now showing, so
+//     it is never lost to a hidden control.
+//   - The 3-D animation is switched off by prefers-reduced-motion (see
+//     index.css).
 //
 // Contract (shared by every artifact renderer):
 //   props.artifact — the parsed artifact.json for this type
 //
 // Unknown fields on `artifact` or `card` are ignored, which is how
 // backward compatibility works: older artifacts with dead fields
-// (e.g. visual_filename from the Step 7 experiment) render cleanly.
+// render cleanly.
+
+const TYPE_LABEL = {
+  hook:    '🎣 Hook',
+  content: '📚 Content',
+  apply:   '✅ Apply Today',
+}
 
 function Renderer({ artifact }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
+  const [announcement, setAnnouncement] = useState('')
+  const frontBtn = useRef(null)
+  const backBtn = useRef(null)
+  const userFlipped = useRef(false)
 
   const cards = artifact?.cards ?? []
   const total = cards.length
@@ -28,8 +48,12 @@ function Renderer({ artifact }) {
   const goTo = useCallback((index) => {
     setFlipped(false)
     // Small delay so the unflip animation starts before the content changes
-    setTimeout(() => setCurrentIndex(index), 150)
-  }, [])
+    setTimeout(() => {
+      setCurrentIndex(index)
+      const c = (artifact?.cards ?? [])[index]
+      if (c) setAnnouncement(`Card ${index + 1} of ${(artifact?.cards ?? []).length}. ${c.front}`)
+    }, 150)
+  }, [artifact])
 
   const goNext = useCallback(() => {
     if (currentIndex < total - 1) goTo(currentIndex + 1)
@@ -39,109 +63,133 @@ function Renderer({ artifact }) {
     if (currentIndex > 0) goTo(currentIndex - 1)
   }, [currentIndex, goTo])
 
-  // Keyboard navigation — only active when the deck element is focused
+  const flip = useCallback(() => {
+    userFlipped.current = true
+    setFlipped(f => {
+      const next = !f
+      setAnnouncement(next ? `Answer. ${card?.back ?? ''}` : `Question. ${card?.front ?? ''}`)
+      return next
+    })
+  }, [card])
+
+  // After the user flips, put focus on the button of the side now showing.
+  useEffect(() => {
+    if (!userFlipped.current) return
+    userFlipped.current = false
+    ;(flipped ? backBtn : frontBtn).current?.focus()
+  }, [flipped])
+
+  // Arrow keys move between cards while focus is anywhere inside the deck.
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'ArrowRight') { e.preventDefault(); goNext() }
     if (e.key === 'ArrowLeft')  { e.preventDefault(); goPrev() }
-    if (e.key === ' ')          { e.preventDefault(); setFlipped(f => !f) }
   }, [goNext, goPrev])
 
-  // Reset to card 1 whenever a new artifact is passed in (e.g. user picks a different deck)
+  // Reset to card 1 whenever a new artifact is passed in
   useEffect(() => {
     setCurrentIndex(0)
     setFlipped(false)
+    setAnnouncement('')
   }, [artifact])
 
-  if (!card) return <p style={{ color: '#6b6b6b' }}>No cards in this deck.</p>
+  if (!card) return <p>No cards in this deck.</p>
 
-  // Human-readable label for the card type badge
-  const TYPE_LABEL = {
-    hook:    '🎣 Hook',
-    content: '📚 Content',
-    apply:   '✅ Apply Today'
-  }
+  const badge = TYPE_LABEL[card.type] ?? card.type
 
   return (
-    // tabIndex={0} makes this div focusable so keyboard events fire on it
-    <div className="flipcard-deck" onKeyDown={handleKeyDown} tabIndex={0}>
+    <div className="flipcard-deck" role="group" aria-label="Flip card deck" onKeyDown={handleKeyDown}>
 
       {/* Deck header: counter + estimated time */}
       <div className="flipcard-deck-meta">
         <div className="flipcard-deck-info">
-          <span className="flipcard-counter">{currentIndex + 1} / {total}</span>
-          <span className="flipcard-time">~{artifact.estimated_minutes} min</span>
+          <span className="flipcard-counter">Card {currentIndex + 1} of {total}</span>
+          <span className="flipcard-time">About {artifact.estimated_minutes} min</span>
         </div>
       </div>
 
       {/* ── The flip card ── */}
-      {/* CSS perspective + rotateY gives the 3-D flip effect.         */}
-      {/* The .flipped class on the outer div triggers the rotation.   */}
+      {/* A click anywhere on the card still flips it for mouse users;     */}
+      {/* keyboard and screen-reader users use the real buttons inside.    */}
       <div
         className={`flipcard flipcard-type-${card.type} ${flipped ? 'flipped' : ''}`}
-        onClick={() => setFlipped(f => !f)}
-        role="button"
-        aria-label={flipped ? 'Show front of card' : 'Reveal answer'}
+        onClick={flip}
       >
         <div className="flipcard-inner">
 
           {/* Front face */}
-          <div className="flipcard-front">
-            <div className="flipcard-type-badge">
-              {TYPE_LABEL[card.type] ?? card.type}
-            </div>
+          <div className="flipcard-front" aria-hidden={flipped} inert={flipped ? '' : undefined}>
+            <div className="flipcard-type-badge">{badge}</div>
             <div className="flipcard-text">{card.front}</div>
-            <div className="flipcard-hint">Click to reveal →</div>
+            <div className="flipcard-hint">
+              <button
+                type="button"
+                ref={frontBtn}
+                className="flipcard-flip"
+                onClick={(e) => { e.stopPropagation(); flip() }}
+              >
+                Reveal answer
+              </button>
+            </div>
           </div>
 
           {/* Back face — rotated 180° in CSS, flips into view */}
-          <div className="flipcard-back">
-            <div className="flipcard-type-badge">
-              {TYPE_LABEL[card.type] ?? card.type}
-            </div>
+          <div className="flipcard-back" aria-hidden={!flipped} inert={!flipped ? '' : undefined}>
+            <div className="flipcard-type-badge">{badge}</div>
             <div className="flipcard-text">{card.back}</div>
-            <div className="flipcard-hint">← Click to flip back</div>
+            <div className="flipcard-hint">
+              <button
+                type="button"
+                ref={backBtn}
+                className="flipcard-flip"
+                onClick={(e) => { e.stopPropagation(); flip() }}
+              >
+                Show question
+              </button>
+            </div>
           </div>
 
         </div>
       </div>
 
+      <div className="sr-only" role="status" aria-live="polite">{announcement}</div>
+
       {/* Navigation row */}
       <div className="flipcard-nav">
         <button
+          type="button"
           className="btn btn-secondary"
           onClick={goPrev}
           disabled={currentIndex === 0}
-          aria-label="Previous card"
         >
-          ← Prev
+          Previous card
         </button>
 
-        {/* Dot indicators — click any dot to jump to that card */}
-        <div className="flipcard-progress" role="tablist" aria-label="Card navigation">
+        {/* Dot buttons: jump to any card */}
+        <div className="flipcard-progress" role="group" aria-label="Jump to a card">
           {cards.map((_, i) => (
             <button
+              type="button"
               key={i}
-              className={`flipcard-dot ${i === currentIndex ? 'active' : ''}`}
+              className="flipcard-dot"
               onClick={() => goTo(i)}
-              aria-label={`Card ${i + 1}`}
-              aria-selected={i === currentIndex}
-              role="tab"
+              aria-label={`Card ${i + 1} of ${total}`}
+              aria-current={i === currentIndex ? 'true' : undefined}
             />
           ))}
         </div>
 
         <button
+          type="button"
           className="btn btn-secondary"
           onClick={goNext}
           disabled={currentIndex === total - 1}
-          aria-label="Next card"
         >
-          Next →
+          Next card
         </button>
       </div>
 
       <p className="flipcard-keyboard-hint">
-        ← → arrow keys to navigate · Space to flip
+        Use the buttons, or press the left and right arrow keys to change cards.
       </p>
     </div>
   )

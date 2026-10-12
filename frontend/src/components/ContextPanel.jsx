@@ -91,6 +91,7 @@ function ContextPanel({
             value={focus}
             onChange={e => setFocus(e.target.value)}
             disabled={busy}
+            autoFocus
           />
         </label>
       </div>

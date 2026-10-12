@@ -19,7 +19,7 @@
 
 .kc-setup {
   background: var(--color-accent-light);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   padding: 14px 16px;
 }
@@ -66,7 +66,7 @@
   padding: 14px 16px;
   background: var(--color-surface);
   color: var(--color-text-primary);
-  border: 2px solid var(--color-border);
+  border: 2px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
@@ -99,7 +99,7 @@
   height: 24px;
   border-radius: 50%;
   background: var(--color-bg);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   font-size: 12px;
   font-weight: 700;
   display: flex;

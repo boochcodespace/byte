@@ -3,6 +3,7 @@ import { api } from '../lib/apiFetch'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import LoadingState from '../components/LoadingState'
 import ErrorState from '../components/ErrorState'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 // Suggest a provider from the shape of a pasted key. Only a hint: the
 // dropdown stays the source of truth because prefixes overlap (OpenRouter
@@ -24,6 +25,7 @@ function suggestProvider(key) {
 // provider needs no change here. Everything is saved in
 // ~/Byte/settings.json; nothing goes into localStorage or this repo.
 function Settings() {
+  usePageTitle('Settings')
   const [info, setInfo] = useState(null)   // GET /api/settings response
   const [provider, setProvider] = useState('anthropic')
   const [apiKey, setApiKey] = useState('')
@@ -222,9 +224,11 @@ function Settings() {
           </form>
         )}
 
-        {successMessage && (
-          <div className="status-message success">{successMessage}</div>
-        )}
+        <div role="status">
+          {successMessage && (
+            <div className="status-message success">{successMessage}</div>
+          )}
+        </div>
 
         {saveAction.error && (
           <ErrorState

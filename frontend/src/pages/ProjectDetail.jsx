@@ -6,6 +6,7 @@ import { useAsyncAction } from '../hooks/useAsyncAction'
 import { actionPropsFor } from '../lib/errorActions'
 import LoadingState from '../components/LoadingState'
 import ErrorState from '../components/ErrorState'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 // ProjectDetail: a single project's view.
 // Left column: sources grid. Right sidebar: three steering panels
@@ -16,6 +17,7 @@ function ProjectDetail() {
   const navigate = useNavigate()
 
   const [project, setProject] = useState(null)
+  usePageTitle(project?.title)
   const [sources, setSources] = useState([])
   const [lessons, setLessons] = useState([])
 
@@ -72,7 +74,7 @@ function ProjectDetail() {
     )
     if (result) {
       setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      setTimeout(() => setSaved(false), 6000)
     }
   }
 
@@ -97,7 +99,7 @@ function ProjectDetail() {
 
   return (
     <div className="project-detail">
-      <nav className="breadcrumb">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link to="/">Projects</Link>
         <span className="breadcrumb-sep">›</span>
         <span>{project.title}</span>
@@ -224,6 +226,7 @@ function ProjectDetail() {
               >
                 {savedStyle ? 'Saved ✓' : styleAction.loading ? 'Saving...' : 'Save'}
               </button>
+              <span className="sr-only" role="status">{savedStyle ? 'Style guide saved.' : ''}</span>
               {styleAction.error && (
                 <ErrorState
                   message={styleAction.error.userMessage}
@@ -260,6 +263,7 @@ function ProjectDetail() {
               >
                 {savedInstructions ? 'Saved ✓' : instructionsAction.loading ? 'Saving...' : 'Save'}
               </button>
+              <span className="sr-only" role="status">{savedInstructions ? 'Custom instructions saved.' : ''}</span>
               {instructionsAction.error && (
                 <ErrorState
                   message={instructionsAction.error.userMessage}
@@ -294,6 +298,7 @@ function ProjectDetail() {
               >
                 {savedAudience ? 'Saved ✓' : audienceAction.loading ? 'Saving...' : 'Save'}
               </button>
+              <span className="sr-only" role="status">{savedAudience ? 'Target audience saved.' : ''}</span>
               {audienceAction.error && (
                 <ErrorState
                   message={audienceAction.error.userMessage}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import GrowTextarea from './GrowTextarea'
 import { VisualEditor, VisualDisplay } from './VisualFields'
 import { getRenderer, getTypeMeta } from '../artifact-renderers/registry'
@@ -59,14 +59,14 @@ export function TextEditor({ block, onSave, onCancel, busy, saveLabel = 'Save', 
         <div className="form-group">
           <label>
             Title
-            <input type="text" value={title} maxLength={120} onChange={e => setTitle(e.target.value)} disabled={busy} />
+            <input type="text" value={title} maxLength={120} onChange={e => setTitle(e.target.value)} disabled={busy} autoFocus />
           </label>
         </div>
       )}
       <div className="form-group">
         <label>
           {isRecall ? 'Recall question' : 'Text'}
-          <textarea rows={isRecall ? 3 : 6} value={body} onChange={e => setBody(e.target.value)} disabled={busy} />
+          <textarea rows={isRecall ? 3 : 6} value={body} onChange={e => setBody(e.target.value)} disabled={busy} autoFocus={block.kind !== 'chunk'} />
         </label>
       </div>
       {block.kind === 'chunk' && (
@@ -98,22 +98,27 @@ export function TextEditor({ block, onSave, onCancel, busy, saveLabel = 'Save', 
 //   onRemove, removeMessage   confirm text for Remove
 //   canRemove               false for the last hook (shown as a note)
 //   children                errors or panels under the block
-export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCancelEdit, onGenerate, onRemove, removeMessage, canRemove = true, onDraftAlt, children }) {
+export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCancelEdit, onGenerate, onRemove, removeMessage, canRemove = true, onDraftAlt, label, children }) {
   const [showAnswer, setShowAnswer] = useState(false)
   const locked = busy || disabled
   const badge = block.edited && <span className="lesson-badge">Edited by you</span>
   const actions = !editing && onEdit && (
     <div className="lesson-actions">
-      <button type="button" className="btn btn-secondary btn-sm" onClick={onEdit} disabled={locked}>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={onEdit} disabled={locked}
+        data-focus-key={`edit:${block.id}`}
+        aria-label={label ? `Edit ${label}` : undefined}>
         Edit
       </button>
-      <button type="button" className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={locked}>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={locked}
+        data-focus-key={`regen:${block.id}`}
+        aria-label={label ? `Regenerate ${label}` : undefined}>
         Regenerate
       </button>
       {canRemove ? (
         <RemoveControl
           onRemove={onRemove}
           locked={locked}
+          label={label}
           message={removeMessage || (block.edited
             ? 'Remove this block? Your edits will be lost.'
             : 'Remove this block from the lesson?')}
@@ -150,7 +155,8 @@ export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
                 <p>{block.answer}</p>
               </div>
             ) : (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowAnswer(true)}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowAnswer(true)}
+                aria-label={label ? `Show answer, ${label}` : undefined}>
                 Show answer
               </button>
             )}
@@ -176,10 +182,10 @@ export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
       {editor || (
         <>
           {block.kind === 'chunk' && (
-            <h3 className="lesson-chunk-title">
+            <h2 className="lesson-chunk-title">
               {block.title}
               <span className="lesson-minutes">{block.minutes} min</span>
-            </h3>
+            </h2>
           )}
           <div className="lesson-body">
             <Paragraphs text={block.body} />
@@ -201,23 +207,32 @@ export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
 export function RemoveControl({
   onRemove,
   locked,
+  label,
   message = 'Remove this from the lesson? The artifact stays in your project.',
 }) {
   const [confirming, setConfirming] = useState(false)
+  const removeBtn = useRef(null)
+  const cameFromCancel = useRef(false)
+  useEffect(() => {
+    if (!confirming && cameFromCancel.current) { cameFromCancel.current = false; removeBtn.current?.focus() }
+  }, [confirming])
   if (!confirming) {
     return (
-      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setConfirming(true)} disabled={locked}>
+      <button type="button" ref={removeBtn} className="btn btn-secondary btn-sm" onClick={() => setConfirming(true)} disabled={locked}
+        aria-label={label ? `Remove ${label}` : undefined}>
         Remove
       </button>
     )
   }
   return (
-    <span className="delete-confirm">
+    <span className="delete-confirm" role="group" aria-label={label ? `Confirm removing ${label}` : 'Confirm removing'}>
       <span>{message}</span>
-      <button type="button" className="btn btn-danger btn-sm" onClick={onRemove} disabled={locked}>
+      <button type="button" className="btn btn-danger btn-sm" onClick={onRemove} disabled={locked}
+        aria-label={label ? `Yes, remove ${label}` : undefined}>
         Yes, remove
       </button>
-      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setConfirming(false)} disabled={locked}>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => { cameFromCancel.current = true; setConfirming(false) }} disabled={locked}
+        aria-label={label ? `Cancel, keep ${label}` : undefined}>
         Cancel
       </button>
     </span>
@@ -226,17 +241,18 @@ export function RemoveControl({
 
 // Replace offers two choices: pick another existing artifact, or generate
 // a new one. The artifact being replaced stays in the project.
-function ReplaceControl({ onPickExisting, onGenerate, locked }) {
+function ReplaceControl({ onPickExisting, onGenerate, locked, label }) {
   const [open, setOpen] = useState(false)
   if (!open) {
     return (
-      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen(true)} disabled={locked}>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen(true)} disabled={locked}
+        aria-label={label ? `Replace ${label}` : undefined}>
         Replace
       </button>
     )
   }
   return (
-    <span className="delete-confirm">
+    <span className="delete-confirm" role="group" aria-label={label ? `Replace ${label} with` : 'Replace with'}>
       <span>Replace with:</span>
       <button type="button" className="btn btn-primary btn-sm" onClick={() => { setOpen(false); onPickExisting() }} disabled={locked}>
         Pick another existing
@@ -274,6 +290,7 @@ export function ArtifactBlock({
   onPickExisting,
   onRemove,
   removeMessage,
+  label,
   children,
 }) {
   const meta = getTypeMeta(block.artifact_type)
@@ -303,11 +320,13 @@ export function ArtifactBlock({
           <p className="lesson-proposal-note">Generated with: {contextSummary(block.generation_context)}</p>
         )}
         <div className="lesson-actions">
-          <button type="button" className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={locked}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={locked}
+            data-focus-key={`regen:${block.id}`}
+            aria-label={label ? `Regenerate ${label}` : undefined}>
             Regenerate
           </button>
-          <ReplaceControl onPickExisting={onPickExisting} onGenerate={onGenerate} locked={locked} />
-          <RemoveControl onRemove={onRemove} locked={locked} message={removeMessage} />
+          <ReplaceControl onPickExisting={onPickExisting} onGenerate={onGenerate} locked={locked} label={label} />
+          <RemoveControl onRemove={onRemove} locked={locked} label={label} message={removeMessage} />
         </div>
         {spinner}
         {children}
@@ -323,13 +342,15 @@ export function ArtifactBlock({
           This artifact is no longer available. Your lesson is unchanged and nothing was deleted.
         </p>
         <div className="lesson-actions">
-          <button type="button" className="btn btn-primary btn-sm" onClick={onPickExisting} disabled={locked}>
+          <button type="button" className="btn btn-primary btn-sm" onClick={onPickExisting} disabled={locked}
+            aria-label={label ? `Pick another for ${label}` : undefined}>
             Pick another
           </button>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={locked}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={locked}
+            aria-label={label ? `Generate a new one for ${label}` : undefined}>
             Generate a new one
           </button>
-          <RemoveControl onRemove={onRemove} locked={locked} message={removeMessage} />
+          <RemoveControl onRemove={onRemove} locked={locked} label={label} message={removeMessage} />
         </div>
         {spinner}
         {children}
@@ -346,13 +367,15 @@ export function ArtifactBlock({
       </div>
       <p className="lesson-proposal-note">{block.placement_note}</p>
       <div className="lesson-actions">
-        <button type="button" className="btn btn-primary btn-sm" onClick={onGenerate} disabled={locked}>
+        <button type="button" className="btn btn-primary btn-sm" onClick={onGenerate} disabled={locked}
+          aria-label={label ? `Generate for this lesson: ${label}` : undefined}>
           Generate for this lesson
         </button>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={onPickExisting} disabled={locked}>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={onPickExisting} disabled={locked}
+          aria-label={label ? `Pick existing for ${label}` : undefined}>
           Pick existing
         </button>
-        <RemoveControl onRemove={onRemove} locked={locked} message={removeMessage} />
+        <RemoveControl onRemove={onRemove} locked={locked} label={label} message={removeMessage} />
       </div>
       {spinner}
       {children}

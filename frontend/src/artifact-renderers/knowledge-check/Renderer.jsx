@@ -37,6 +37,8 @@ function Renderer({ artifact }) {
   const [done, setDone] = useState(false)
 
   const nextRef = useRef(null)
+  const topRef = useRef(null)      // question counter / results heading, focused after moving on
+  const moved = useRef(false)      // true once the learner has moved on or restarted
 
   // Start over (and reshuffle) whenever a different artifact is passed in
   useEffect(() => {
@@ -52,6 +54,12 @@ function Renderer({ artifact }) {
   useEffect(() => {
     if (picked !== null) nextRef.current?.focus()
   }, [picked])
+
+  // After Next or Try again, focus moves to the new question or the results
+  // so a keyboard or screen reader user is not left on a button that is gone.
+  useEffect(() => {
+    if (moved.current) { moved.current = false; topRef.current?.focus() }
+  }, [index, done])
 
   const item = items[index]
   if (!item) return <p style={{ color: '#6b6b6b' }}>No questions in this knowledge check.</p>
@@ -71,11 +79,13 @@ function Renderer({ artifact }) {
   function handleNext() {
     setResults(r => [...r, { text: chosen.text, strongest: gotStrongest }])
     setPicked(null)
+    moved.current = true
     if (isLast) setDone(true)
     else setIndex(i => i + 1)
   }
 
   function restart() {
+    moved.current = true
     setOrders(makeOrders(items))
     setIndex(0)
     setPicked(null)
@@ -93,7 +103,7 @@ function Renderer({ artifact }) {
         </div>
 
         <div className="kc-end">
-          <div className="kc-label">Your results</div>
+          <div className="kc-label" ref={topRef} tabIndex={-1}>Your results</div>
           <p className="kc-stem">
             You chose the strongest answer on {strongestCount} of {results.length} questions.
           </p>
@@ -131,7 +141,7 @@ function Renderer({ artifact }) {
         <p>{artifact.setup}</p>
       </div>
 
-      <div className="kc-progress">
+      <div className="kc-progress" ref={topRef} tabIndex={-1}>
         Question {index + 1} of {items.length}
         {artifact.estimated_minutes ? ` · ~${artifact.estimated_minutes} min` : ''}
       </div>

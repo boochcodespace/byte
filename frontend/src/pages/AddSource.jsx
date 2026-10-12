@@ -5,6 +5,7 @@ import { useAsyncAction } from '../hooks/useAsyncAction'
 import { actionPropsFor } from '../lib/errorActions'
 import LoadingState from '../components/LoadingState'
 import ErrorState from '../components/ErrorState'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.pptx', '.docx', '.md', '.txt']
 const MAX_FILE_BYTES = 25 * 1024 * 1024   // 25 MB
@@ -29,6 +30,7 @@ function validateFile(file) {
 // AddSource: dedicated page for adding a source to a specific project.
 // Supports two input modes — paste text or upload a file.
 function AddSource() {
+  usePageTitle('Add a source')
   const { projectSlug } = useParams()
   const navigate = useNavigate()
 
@@ -129,7 +131,7 @@ function AddSource() {
 
   return (
     <div className="add-source-page">
-      <nav className="breadcrumb">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link to="/">Projects</Link>
         <span className="breadcrumb-sep">›</span>
         <Link to={`/projects/${projectSlug}`}>{projectSlug}</Link>
@@ -138,7 +140,7 @@ function AddSource() {
       </nav>
 
       <div className="card add-source-form">
-        <h2>New source</h2>
+        <h1>New source</h1>
 
         <div className="source-mode-toggle">
           <button
@@ -239,7 +241,7 @@ function AddSource() {
               </div>
 
               {fileError && (
-                <div className="status-message error" style={{ marginTop: '8px' }}>
+                <div className="status-message error" role="alert" style={{ marginTop: '8px' }}>
                   {fileError}
                 </div>
               )}
