@@ -25,11 +25,12 @@ const { getTypeModule } = require('../artifact-types/registry')
 const store = require('./store')
 const { loadSources, assertWithinCap } = require('./sources')
 const { computeLesson } = require('./time')
-const { blueprintPrompt, textPrompt, tabsPrompt } = require('./prompts')
+const { blueprintPrompt, textPrompt, tabsPrompt, textBlockPrompt } = require('./prompts')
 const { validation, notFound } = require('./errors')
 const blueprintSchema = require('./schemas/blueprint.schema.json')
 const textSchema = require('./schemas/text.schema.json')
 const tabsSchema = require('./schemas/tabs.schema.json')
+const textBlockSchema = require('./schemas/text-block.schema.json')
 
 const DEFAULT_BUDGET = 10
 const MIN_BUDGET = 5
@@ -38,6 +39,7 @@ const MAX_BUDGET = 10
 const BLUEPRINT_MAX_TOKENS = 3000
 const TEXT_MAX_TOKENS = 6500
 const TABS_MAX_TOKENS = 2500
+const TEXT_BLOCK_MAX_TOKENS = 1500
 
 // In-lesson artifact sizes. Standalone defaults are larger; these keep a
 // lesson with a few artifacts inside its time budget. The user may pick a
@@ -580,7 +582,7 @@ async function acceptPlacement(projectSlug, lessonId, blockId, body, llmConfig) 
 
 // ── tabs ─────────────────────────────────────────────────────────────
 
-const TAB_LIMITS = { min: 2, max: 5, label: 40, body: 1500, visual: 300, title: 120 }
+const TAB_LIMITS = { min: 2, max: 5, label: 40, body: 1500, visual: 10000, title: 120 }
 
 // Validate and normalize a tabs payload. strict (user input) rejects bad
 // values with a friendly message; non-strict (model output) trims instead.
@@ -609,7 +611,7 @@ function sanitizeTabs(rawTabs, rawTitle, { strict }) {
       if (label.length > TAB_LIMITS.label) throw validation(`Tab labels can be up to ${TAB_LIMITS.label} characters.`)
       if (!body) throw validation(`The tab "${label}" needs some text.`)
       if (body.length > TAB_LIMITS.body) throw validation(`The tab "${label}" is too long. Keep each tab under 1,500 characters.`)
-      if (visual.length > TAB_LIMITS.visual) throw validation(`The visual note on "${label}" can be up to ${TAB_LIMITS.visual} characters.`)
+      if (visual.length > TAB_LIMITS.visual) throw validation(`The visual note on "${label}" can be up to ${TAB_LIMITS.visual.toLocaleString('en-US')} characters.`)
     } else {
       label = label.slice(0, TAB_LIMITS.label)
       body = body.slice(0, TAB_LIMITS.body)
@@ -709,7 +711,9 @@ function editTabs(projectSlug, lessonId, blockId, body) {
 
 // ── text blocks ──────────────────────────────────────────────────────
 
-const TEXT_LIMITS = { title: 120, body: 4000, visual: 300, answer: 1500 }
+// A visual note is a description of a diagram or screenshot and can run long;
+// the cap is only a safety net far above normal use.
+const TEXT_LIMITS = { title: 120, body: 4000, visual: 10000, answer: 1500 }
 
 // Edit a text block (hook, chunk, apply, recall) inline. Editable fields:
 // body for all; title and visual for chunks; answer for recall. Anything
@@ -739,6 +743,73 @@ function editTextBlock(projectSlug, lessonId, blockId, body) {
   Object.assign(block, next)
   if (changed) block.edited = true
 
+  store.writeLesson(projectSlug, lesson)
+  return presentLesson(projectSlug, lesson)
+}
+
+// Rewrite one text block with the model. Regenerating over hand edits
+// needs overwrite:true, so a stray request cannot discard the user's work.
+// A failed generation changes nothing. The block's position, id, and (for
+// recall) day are kept; the context is stored for the next Regenerate.
+async function generateTextBlock(projectSlug, lessonId, blockId, body, llmConfig) {
+  const project = requireProject(projectSlug)
+  const lesson = requireLesson(projectSlug, lessonId)
+  if (lesson.status !== 'drafted') throw validation('Write the lesson text first.')
+
+  const block = lesson.blocks.find(b => b.id === blockId)
+  if (!block || !TEXT_KINDS.has(block.kind)) throw notFound('That text block was not found.')
+  if (block.edited && body?.overwrite !== true) {
+    throw validation('This block has your edits. Confirm that you want to replace them.')
+  }
+
+  const { text, totalChars } = loadSources(projectSlug, lesson.sources)
+  assertWithinCap(totalChars)
+
+  const given = contextFor('text', block, body || {})
+  const section = (lesson.blueprint?.sections || []).find(s => s.kind === block.kind && s.title === block.title)
+  const promptContext = buildPromptContext({
+    sourceContent: text,
+    context: learnerContextFor(lesson, given),
+    project,
+    perGenerationPrompt: lesson.steering?.per_generation_prompt,
+    perGenerationObjective: lesson.objective,
+    blockContext: {
+      placement: placementText(lesson, block.id, `${block.kind} block`, ''),
+      focus: given.focus,
+      sourceSection: given.source_section,
+      notes: given.notes,
+    },
+  })
+
+  const parsed = await generateValidated({
+    key: 'lesson-text-block',
+    schema: textBlockSchema,
+    userPrompt: textBlockPrompt(promptContext, {
+      topic: lesson.topic,
+      objective: lesson.objective,
+      block,
+      purpose: section?.purpose,
+      wordTarget: section ? Math.round(section.target_minutes * 200) : null,
+    }),
+    llmConfig,
+    maxTokens: TEXT_BLOCK_MAX_TOKENS,
+  })
+
+  const next = { body: str(parsed.body) }
+  if (block.kind === 'chunk') {
+    next.visual = str(parsed.visual)
+    if (!next.visual) throw new SchemaValidationError('lesson-text-block', [{ message: 'The model wrote no visual note for a chunk.' }])
+    if (str(parsed.title)) next.title = str(parsed.title).slice(0, TEXT_LIMITS.title)
+  }
+  if (block.kind === 'recall') {
+    next.answer = str(parsed.answer)
+    if (!next.answer) throw new SchemaValidationError('lesson-text-block', [{ message: 'The model wrote no answer for a recall block.' }])
+  }
+  next.body = next.body.slice(0, TEXT_LIMITS.body)
+
+  Object.assign(block, next)
+  block.edited = false
+  storeContext(block, given)
   store.writeLesson(projectSlug, lesson)
   return presentLesson(projectSlug, lesson)
 }
@@ -853,6 +924,7 @@ module.exports = {
   generateTabs,
   editTabs,
   editTextBlock,
+  generateTextBlock,
   insertBlock,
   removeBlock,
 }

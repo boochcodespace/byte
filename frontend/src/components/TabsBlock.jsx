@@ -147,7 +147,7 @@ export function TabsEditor({ initial, onSave, onCancel, busy, saveLabel = 'Save'
           <div className="form-group">
             <label>
               Tab {i + 1} visual note <span className="label-optional">(optional)</span>
-              <input type="text" value={t.visual} maxLength={300} onChange={e => patch(i, { visual: e.target.value })} disabled={busy} />
+              <input type="text" value={t.visual} onChange={e => patch(i, { visual: e.target.value })} disabled={busy} />
             </label>
           </div>
           <div className="lesson-actions">

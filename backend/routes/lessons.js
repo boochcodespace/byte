@@ -13,6 +13,7 @@
 //   PUT    /:lessonId/blocks/:blockId/tabs     edit tabs inline
 //   POST   /:lessonId/blocks/:blockId/artifact accept a placement, or replace
 //   PUT    /:lessonId/blocks/:blockId/text     edit a text block inline
+//   POST   /:lessonId/blocks/:blockId/text/generate  rewrite a text block
 //   DELETE /:lessonId/blocks/:blockId          remove a block (an artifact
 //                                              itself stays; not the last hook)
 //
@@ -192,6 +193,18 @@ router.put('/:lessonId/blocks/:blockId/text', (req, res) => {
     return sendOk(res, service.editTextBlock(projectSlug, lessonId, blockId, req.body || {}))
   } catch (err) {
     return fail(res, 'lessons:text-edit', err)
+  }
+})
+
+router.post('/:lessonId/blocks/:blockId/text/generate', async (req, res) => {
+  try {
+    checkIds(req)
+    const llmConfig = requireLlm(res)
+    if (!llmConfig) return
+    const { projectSlug, lessonId, blockId } = req.params
+    return sendOk(res, await service.generateTextBlock(projectSlug, lessonId, blockId, req.body || {}, llmConfig))
+  } catch (err) {
+    return fail(res, 'lessons:text-generate', err)
   }
 })
 

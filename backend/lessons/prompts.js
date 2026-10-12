@@ -274,4 +274,62 @@ Respond in this JSON schema:
 }`
 }
 
-module.exports = { blueprintPrompt, textPrompt, tabsPrompt, textBudgetMinutes }
+// Rewrite ONE text block (hook, chunk, apply, or recall) of a drafted lesson.
+// The BLOCK CONTEXT section (placement plus any focus, source section, or
+// notes) arrives through the steering block, like every other block.
+function textBlockPrompt(ctx, { topic, objective, block, purpose, wordTarget }) {
+  const { sourceContent, steeringBlock, learnerContextBlock } = ctx
+  const rules = {
+    hook: '- "body": 1 to 2 sentences. Name the job task and the payoff. Never open with "In this lesson" or a topic announcement',
+    chunk: `- "title": the section title, phrased as a question where that reads naturally
+- "body": teach the ONE idea in short paragraphs, about ${wordTarget || 110} words or fewer. Plain text, paragraphs separated by a blank line
+- "visual": a diagram or an annotated screenshot that carries meaning. Describe it so it could be sketched or captured, and name what each label points to. No decorative imagery`,
+    apply: '- "body": one sentence with a named trigger and a specific action the learner can take within 24 hours ("Next time X happens, do Y")',
+    recall: `- "body": a stand-alone question that tests ONE idea from the lesson. A learner must be able to answer it from memory with the lesson out of sight. Use fresh wording. Positive phrasing, no "best" alone
+- "answer": the expected answer in 25 words or fewer`,
+  }[block.kind]
+  const shape = {
+    hook: '{ "body": "string" }',
+    chunk: '{ "title": "string", "body": "string", "visual": "string" }',
+    apply: '{ "body": "string" }',
+    recall: '{ "body": "string", "answer": "string" }',
+  }[block.kind]
+
+  return `Rewrite one ${block.kind} block of a lesson from the sources below. This is \
+SECONDARY content creation: treat the sources as reference material to \
+faithfully distill, not as inspiration for invention.
+
+═══ LESSON TOPIC ═══
+${topic}
+
+═══ LESSON OBJECTIVE (locked) ═══
+${objective}
+
+${steeringBlock}
+
+${learnerContextBlock}
+
+═══ THE BLOCK BEING REPLACED ═══
+${block.title ? `Title: ${block.title}\n` : ''}${purpose ? `Purpose: ${purpose}\n` : ''}Current text: ${block.body}
+Write a fresh version. Do not copy the current text. If the BLOCK CONTEXT \
+above gives a Focus, build the block around it.
+
+═══ SOURCES (reference material) ═══
+${sourceContent}
+
+═══ REQUIREMENTS ═══
+${rules}
+- Plain text only. No headings, no bullet lists, no markdown
+- Second person, active voice, short sentences. Use the sources' own terms. \
+Do not name people unless the PROJECT STYLE GUIDE explicitly asks for named characters
+
+EXPERIENCE LEVEL
+- Novice: define terms, go step by step
+- Practicing: assume core vocabulary, focus on decisions and common mistakes
+- Expert: condensed, lead with exceptions and edge cases
+
+Respond in this JSON schema:
+${shape}`
+}
+
+module.exports = { blueprintPrompt, textPrompt, tabsPrompt, textBlockPrompt, textBudgetMinutes }

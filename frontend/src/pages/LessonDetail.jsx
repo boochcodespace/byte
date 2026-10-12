@@ -214,6 +214,9 @@ function LessonDetail() {
   const pickArtifact = (block, ref) =>
     runBlock(block.id, () =>
       api.post(`${base}/blocks/${block.id}/artifact`, { mode: 'existing', source: ref.source, artifact: ref.folder }))
+  const generateText = (block, context) =>
+    runBlock(block.id, () =>
+      api.post(`${base}/blocks/${block.id}/text/generate`, { context, ...(block.edited ? { overwrite: true } : {}) }))
   const saveText = (block, payload) =>
     runBlock(block.id, () => api.put(`${base}/blocks/${block.id}/text`, payload))
   const removeBlock = block =>
@@ -247,10 +250,12 @@ function LessonDetail() {
   // Confirmation text for Remove. When taking this block out would leave no
   // ready knowledge check or scenario, say so (the user can still go on).
   function removeMessageFor(block, plain) {
-    const left = lesson.blocks.some(b =>
-      b.id !== block.id && b.kind === 'artifact' && b.state === 'ready' && !b.unavailable &&
-      (b.artifact_type === 'knowledge-check' || b.artifact_type === 'scenario-branching'))
-    return left ? plain : `${plain} This lesson will then have no knowledge check or scenario, so learners get no retrieval practice.`
+    const isRetrieval = b =>
+      b.kind === 'artifact' && b.state === 'ready' && !b.unavailable &&
+      (b.artifact_type === 'knowledge-check' || b.artifact_type === 'scenario-branching')
+    // Warn only when THIS removal causes the loss: one existed, none will.
+    const causesLoss = isRetrieval(block) && !lesson.blocks.some(b => b.id !== block.id && isRetrieval(b))
+    return !causesLoss ? plain : `${plain} This lesson will then have no knowledge check or scenario, so learners get no retrieval practice.`
   }
 
   // One lesson block: text, tabs, or an artifact slot.
@@ -312,11 +317,27 @@ function LessonDetail() {
           onEdit={() => openEdit(block)}
           onSave={payload => saveText(block, payload)}
           onCancelEdit={() => setEditFor(null)}
+          onGenerate={() => openContext(block)}
           onRemove={() => removeBlock(block)}
           removeMessage={removeMessageFor(block, block.edited
             ? 'Remove this block? Your edits will be lost.'
             : 'Remove this block from the lesson?')}
         >
+          {contextFor === block.id && (
+            <ContextPanel
+              type="text"
+              initial={block.generation_context}
+              limits={limits}
+              lessonExperience={lesson.context?.experience}
+              busy={working}
+              submitLabel="Regenerate"
+              overwriteWarning={block.edited
+                ? 'Regenerating replaces the edits you made to this block, and they cannot be recovered.'
+                : undefined}
+              onSubmit={ctx => generateText(block, ctx)}
+              onCancel={() => setContextFor(null)}
+            />
+          )}
           {failed}
         </TextBlock>
       )

@@ -56,6 +56,8 @@ generation:
     artifact. For content emphasis it overrides the custom
     instructions. It does not override voice, tone, names, or the item
     writing rules.
+  - Inside a lesson, the BLOCK CONTEXT fills the per-generation layer
+    for its block. If both are present, the block context wins.
 
 BLOCK CONTEXT
 A generation inside a lesson also carries a BLOCK CONTEXT section. It

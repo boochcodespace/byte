@@ -112,7 +112,9 @@ function blockMinutes(block, artifacts) {
   if (block.kind === 'recall') {
     return round1(readMinutes(words(block.body, block.answer)) + INTERACTION_MINUTES)
   }
-  return round1(Math.max(0.1, readMinutes(words(block.title, block.body))))
+  // Only text a learner sees: a chunk shows its title; the hook and apply
+  // titles are for the author and are not displayed.
+  return round1(Math.max(0.1, readMinutes(block.kind === 'chunk' ? words(block.title, block.body) : words(block.body))))
 }
 
 // Returns a copy of the lesson with per-block minutes and totals added.

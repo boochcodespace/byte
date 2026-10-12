@@ -63,7 +63,7 @@ export function TextEditor({ block, onSave, onCancel, busy }) {
         <div className="form-group">
           <label>
             Visual note <span className="label-optional">(optional)</span>
-            <input type="text" value={visual} maxLength={300} onChange={e => setVisual(e.target.value)} disabled={busy} />
+            <input type="text" value={visual} onChange={e => setVisual(e.target.value)} disabled={busy} />
           </label>
         </div>
       )}
@@ -93,7 +93,7 @@ export function TextEditor({ block, onSave, onCancel, busy }) {
 //   onRemove, removeMessage   confirm text for Remove
 //   canRemove               false for the last hook (shown as a note)
 //   children                errors or panels under the block
-export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCancelEdit, onRemove, removeMessage, canRemove = true, children }) {
+export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCancelEdit, onGenerate, onRemove, removeMessage, canRemove = true, children }) {
   const [showAnswer, setShowAnswer] = useState(false)
   const locked = busy || disabled
   const badge = block.edited && <span className="lesson-badge">Edited by you</span>
@@ -101,6 +101,9 @@ export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
     <div className="lesson-actions">
       <button type="button" className="btn btn-secondary btn-sm" onClick={onEdit} disabled={locked}>
         Edit
+      </button>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={locked}>
+        Regenerate
       </button>
       {canRemove ? (
         <RemoveControl
@@ -114,6 +117,12 @@ export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
         <span className="field-help">The hook can't be removed. Edit it instead.</span>
       )}
     </div>
+  )
+  const spinner = busy && !editing && (
+    <LoadingState subtle message="Rewriting this block..." hint="This may take up to 30 seconds." />
+  )
+  const generatedWith = !editing && contextSummary(block.generation_context) && (
+    <p className="lesson-proposal-note">Generated with: {contextSummary(block.generation_context)}</p>
   )
   const editor = editing && (
     <TextEditor block={block} onSave={onSave} onCancel={onCancelEdit} busy={busy} />
@@ -142,7 +151,9 @@ export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
             )}
           </>
         )}
+        {generatedWith}
         {actions}
+        {spinner}
         {children}
       </div>
     )
@@ -176,7 +187,9 @@ export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
           )}
         </>
       )}
+      {generatedWith}
       {actions}
+      {spinner}
       {children}
     </div>
   )
