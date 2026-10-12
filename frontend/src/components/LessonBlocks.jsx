@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useLayoutEffect } from 'react'
 import { getRenderer, getTypeMeta } from '../artifact-renderers/registry'
 import LoadingState from './LoadingState'
 
@@ -23,11 +23,33 @@ export function Paragraphs({ text }) {
     .map((p, i) => <p key={i}>{p.trim()}</p>)
 }
 
+// A text area that grows with its content (for long visual notes).
+export function GrowTextarea({ value, onChange, disabled, rows = 2, ...rest }) {
+  const ref = useRef(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [value])
+  return (
+    <textarea
+      ref={ref}
+      rows={rows}
+      className="grow-textarea"
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      {...rest}
+    />
+  )
+}
+
 const KIND_LABEL = { hook: 'Start here', chunk: null, apply: 'Apply today' }
 
 // Inline editor for one text block. Fields shown depend on the kind:
 // body for all, title and visual note for chunks, answer for recall.
-export function TextEditor({ block, onSave, onCancel, busy }) {
+export function TextEditor({ block, onSave, onCancel, busy, saveLabel = 'Save' }) {
   const [title, setTitle] = useState(block.title || '')
   const [body, setBody] = useState(block.body || '')
   const [visual, setVisual] = useState(block.visual || '')
@@ -63,7 +85,7 @@ export function TextEditor({ block, onSave, onCancel, busy }) {
         <div className="form-group">
           <label>
             Visual note <span className="label-optional">(optional)</span>
-            <input type="text" value={visual} onChange={e => setVisual(e.target.value)} disabled={busy} />
+            <GrowTextarea value={visual} onChange={e => setVisual(e.target.value)} disabled={busy} />
           </label>
         </div>
       )}
@@ -77,7 +99,7 @@ export function TextEditor({ block, onSave, onCancel, busy }) {
       )}
       <div className="lesson-actions">
         <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
-          {busy ? 'Saving...' : 'Save'}
+          {busy ? 'Saving...' : saveLabel}
         </button>
         <button type="button" className="btn btn-secondary btn-sm" onClick={onCancel} disabled={busy}>
           Cancel

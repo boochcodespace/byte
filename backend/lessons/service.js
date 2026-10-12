@@ -146,6 +146,11 @@ function presentLesson(projectSlug, lesson) {
     const key = store.artifactKey(b.ref.source, b.ref.artifact)
     return artifacts[key] ? b : { ...b, unavailable: true }
   })
+  // Where each block may move (presentation only; never saved).
+  computed.blocks = computed.blocks.map((b, i) => {
+    const can = moveBounds(computed.blocks, i)
+    return { ...b, can_move_up: can.up, can_move_down: can.down }
+  })
   return { lesson: computed, artifacts, limits: IN_LESSON_SIZES }
 }
 
@@ -350,6 +355,7 @@ function editBlueprint(projectSlug, lessonId, body) {
 }
 
 const TEXT_KINDS = new Set(['hook', 'chunk', 'apply', 'recall'])
+const RECALL_DAYS = [2, 7, 21]
 
 // ── text ─────────────────────────────────────────────────────────────
 
@@ -715,16 +721,10 @@ function editTabs(projectSlug, lessonId, blockId, body) {
 // the cap is only a safety net far above normal use.
 const TEXT_LIMITS = { title: 120, body: 4000, visual: 10000, answer: 1500 }
 
-// Edit a text block (hook, chunk, apply, recall) inline. Editable fields:
-// body for all; title and visual for chunks; answer for recall. Anything
-// else in the request is ignored. A save that changes nothing does not
-// flag the block as edited.
-function editTextBlock(projectSlug, lessonId, blockId, body) {
-  requireProject(projectSlug)
-  const lesson = requireLesson(projectSlug, lessonId)
-  const block = lesson.blocks.find(b => b.id === blockId)
-  if (!block || !TEXT_KINDS.has(block.kind)) throw notFound('That text block was not found.')
-
+// Validate the user-editable fields of a text block of this kind. Body for
+// all; title and visual for chunks; answer for recall. Anything else in the
+// request is ignored.
+function cleanTextFields(kind, body) {
   const next = {}
   const text = (field, label, { required, max }) => {
     const v = str(body?.[field])
@@ -732,19 +732,96 @@ function editTextBlock(projectSlug, lessonId, blockId, body) {
     if (v.length > max) throw validation(`${label} can be up to ${max.toLocaleString('en-US')} characters.`)
     next[field] = v
   }
-  text('body', block.kind === 'recall' ? 'The recall question' : 'The text', { required: true, max: TEXT_LIMITS.body })
-  if (block.kind === 'chunk') {
+  text('body', kind === 'recall' ? 'The recall question' : 'The text', { required: true, max: TEXT_LIMITS.body })
+  if (kind === 'chunk') {
     text('title', 'The title', { required: true, max: TEXT_LIMITS.title })
     text('visual', 'The visual note', { required: false, max: TEXT_LIMITS.visual })
   }
-  if (block.kind === 'recall') text('answer', 'The answer', { required: true, max: TEXT_LIMITS.answer })
+  if (kind === 'recall') text('answer', 'The answer', { required: true, max: TEXT_LIMITS.answer })
+  return next
+}
 
+// Edit a text block (hook, chunk, apply, recall) inline. A save that
+// changes nothing does not flag the block as edited.
+function editTextBlock(projectSlug, lessonId, blockId, body) {
+  requireProject(projectSlug)
+  const lesson = requireLesson(projectSlug, lessonId)
+  const block = lesson.blocks.find(b => b.id === blockId)
+  if (!block || !TEXT_KINDS.has(block.kind)) throw notFound('That text block was not found.')
+
+  const next = cleanTextFields(block.kind, body)
   const changed = Object.keys(next).some(k => (block[k] ?? '') !== next[k])
   Object.assign(block, next)
   if (changed) block.edited = true
 
   store.writeLesson(projectSlug, lesson)
   return presentLesson(projectSlug, lesson)
+}
+
+// Ask the model for one text block's fields. `block` must already sit in
+// lesson.blocks (the prompt says where it is). Returns the cleaned fields
+// and the context used; it does not touch the lesson. `isNew` is a block
+// that has no text yet.
+async function writeTextWithModel(projectSlug, project, lesson, block, body, llmConfig, { isNew }) {
+  const { text, totalChars } = loadSources(projectSlug, lesson.sources)
+  assertWithinCap(totalChars)
+
+  const given = contextFor('text', block, body)
+  const section = isNew ? null
+    : (lesson.blueprint?.sections || []).find(s => s.kind === block.kind && s.title === block.title)
+  const promptContext = buildPromptContext({
+    sourceContent: text,
+    context: learnerContextFor(lesson, given),
+    project,
+    perGenerationPrompt: lesson.steering?.per_generation_prompt,
+    perGenerationObjective: lesson.objective,
+    blockContext: {
+      placement: placementText(lesson, block.id, `${block.kind} block`, ''),
+      focus: given.focus,
+      sourceSection: given.source_section,
+      notes: given.notes,
+    },
+  })
+
+  // What the rest of the lesson already says, so the new text does not repeat it.
+  const others = lesson.blocks.filter(b => b.id !== block.id)
+  const avoid = block.kind === 'recall'
+    ? { label: 'Recall questions already in this lesson', items: others.filter(b => b.kind === 'recall').map(b => b.body) }
+    : isNew && block.kind === 'chunk'
+      ? { label: 'Chunks already in this lesson', items: others.filter(b => b.kind === 'chunk').map(b => b.title) }
+      : null
+
+  const parsed = await generateValidated({
+    key: 'lesson-text-block',
+    schema: textBlockSchema,
+    userPrompt: textBlockPrompt(promptContext, {
+      topic: lesson.topic,
+      objective: lesson.objective,
+      block,
+      isNew,
+      purpose: section?.purpose,
+      wordTarget: section ? Math.round(section.target_minutes * 200) : null,
+      avoid,
+    }),
+    llmConfig,
+    maxTokens: TEXT_BLOCK_MAX_TOKENS,
+  })
+
+  const next = { body: str(parsed.body) }
+  if (!next.body) throw new SchemaValidationError('lesson-text-block', [{ message: 'The model wrote no text.' }])
+  if (block.kind === 'chunk') {
+    next.visual = str(parsed.visual)
+    if (!next.visual) throw new SchemaValidationError('lesson-text-block', [{ message: 'The model wrote no visual note for a chunk.' }])
+    const title = str(parsed.title).slice(0, TEXT_LIMITS.title)
+    if (title) next.title = title
+    else if (isNew) throw new SchemaValidationError('lesson-text-block', [{ message: 'The model wrote no title for a chunk.' }])
+  }
+  if (block.kind === 'recall') {
+    next.answer = str(parsed.answer)
+    if (!next.answer) throw new SchemaValidationError('lesson-text-block', [{ message: 'The model wrote no answer for a recall block.' }])
+  }
+  next.body = next.body.slice(0, TEXT_LIMITS.body)
+  return { next, given }
 }
 
 // Rewrite one text block with the model. Regenerating over hand edits
@@ -762,54 +839,46 @@ async function generateTextBlock(projectSlug, lessonId, blockId, body, llmConfig
     throw validation('This block has your edits. Confirm that you want to replace them.')
   }
 
-  const { text, totalChars } = loadSources(projectSlug, lesson.sources)
-  assertWithinCap(totalChars)
-
-  const given = contextFor('text', block, body || {})
-  const section = (lesson.blueprint?.sections || []).find(s => s.kind === block.kind && s.title === block.title)
-  const promptContext = buildPromptContext({
-    sourceContent: text,
-    context: learnerContextFor(lesson, given),
-    project,
-    perGenerationPrompt: lesson.steering?.per_generation_prompt,
-    perGenerationObjective: lesson.objective,
-    blockContext: {
-      placement: placementText(lesson, block.id, `${block.kind} block`, ''),
-      focus: given.focus,
-      sourceSection: given.source_section,
-      notes: given.notes,
-    },
-  })
-
-  const parsed = await generateValidated({
-    key: 'lesson-text-block',
-    schema: textBlockSchema,
-    userPrompt: textBlockPrompt(promptContext, {
-      topic: lesson.topic,
-      objective: lesson.objective,
-      block,
-      purpose: section?.purpose,
-      wordTarget: section ? Math.round(section.target_minutes * 200) : null,
-    }),
-    llmConfig,
-    maxTokens: TEXT_BLOCK_MAX_TOKENS,
-  })
-
-  const next = { body: str(parsed.body) }
-  if (block.kind === 'chunk') {
-    next.visual = str(parsed.visual)
-    if (!next.visual) throw new SchemaValidationError('lesson-text-block', [{ message: 'The model wrote no visual note for a chunk.' }])
-    if (str(parsed.title)) next.title = str(parsed.title).slice(0, TEXT_LIMITS.title)
-  }
-  if (block.kind === 'recall') {
-    next.answer = str(parsed.answer)
-    if (!next.answer) throw new SchemaValidationError('lesson-text-block', [{ message: 'The model wrote no answer for a recall block.' }])
-  }
-  next.body = next.body.slice(0, TEXT_LIMITS.body)
-
+  const { next, given } = await writeTextWithModel(projectSlug, project, lesson, block, body || {}, llmConfig, { isNew: false })
   Object.assign(block, next)
   block.edited = false
   storeContext(block, given)
+  store.writeLesson(projectSlug, lesson)
+  return presentLesson(projectSlug, lesson)
+}
+
+// ── move ─────────────────────────────────────────────────────────────
+
+// Where a block may go. The hook stays first. Recall prompts stay at the
+// end in day order, so they do not move and nothing moves into them.
+// Everything else swaps places with its neighbour.
+function moveBounds(blocks, i) {
+  const b = blocks[i]
+  if (b.kind === 'hook' || b.kind === 'recall') return { up: false, down: false }
+  const floor = blocks[0]?.kind === 'hook' ? 1 : 0
+  const next = blocks[i + 1]
+  return { up: i > floor, down: !!next && next.kind !== 'recall' }
+}
+
+function moveBlock(projectSlug, lessonId, blockId, direction) {
+  requireProject(projectSlug)
+  const lesson = requireLesson(projectSlug, lessonId)
+  if (lesson.status !== 'drafted') throw validation('Write the lesson text first.')
+  const i = lesson.blocks.findIndex(b => b.id === blockId)
+  if (i === -1) throw notFound('That block was not found.')
+  if (direction !== 'up' && direction !== 'down') throw validation('Move a block up or down.')
+
+  const kind = lesson.blocks[i].kind
+  if (kind === 'hook') throw validation('The hook stays first.')
+  if (kind === 'recall') throw validation('Recall prompts stay at the end, in day order.')
+  const can = moveBounds(lesson.blocks, i)
+  if (direction === 'up' && !can.up) throw validation('A block cannot move above the hook.')
+  if (direction === 'down' && !can.down) {
+    throw validation(i === lesson.blocks.length - 1 ? 'That block is already last.' : 'Blocks stay above the recall prompts.')
+  }
+
+  const k = direction === 'up' ? i - 1 : i + 1
+  ;[lesson.blocks[i], lesson.blocks[k]] = [lesson.blocks[k], lesson.blocks[i]]
   store.writeLesson(projectSlug, lesson)
   return presentLesson(projectSlug, lesson)
 }
@@ -884,8 +953,41 @@ async function insertBlock(projectSlug, lessonId, body, llmConfig) {
     } else {
       throw validation('Choose to generate a new artifact or pick an existing one.')
     }
+  } else if (body.kind === 'chunk' || body.kind === 'apply' || body.kind === 'recall') {
+    block = { id: nextBlockId(lesson), kind: body.kind, title: '', body: '', source_refs: [], edited: false }
+    if (body.kind === 'apply') block.title = 'Apply today'
+    if (body.kind === 'recall') {
+      const day = Number(body.recall_day)
+      if (!RECALL_DAYS.includes(day)) throw validation('Pick day 2, 7, or 21 for the recall prompt.')
+      if (lesson.blocks.some(b => b.kind === 'recall' && b.recall_day === day)) {
+        throw validation(`There is already a day ${day} recall prompt.`)
+      }
+      block.title = `Day ${day}`
+      block.recall_day = day
+      block.answer = ''
+    }
+    // Chunks and apply go right after the chosen block. Recall prompts
+    // always go at the end, in day order.
+    let at = after + 1
+    if (body.kind === 'recall') {
+      at = lesson.blocks.length
+      const later = lesson.blocks.findIndex(b => b.kind === 'recall' && b.recall_day > block.recall_day)
+      if (later !== -1) at = later
+    }
+    lesson.blocks.splice(at, 0, block)
+
+    if (mode === 'write') {
+      Object.assign(block, cleanTextFields(body.kind, body))
+      block.edited = true
+    } else if (mode === 'generate') {
+      const { next, given } = await writeTextWithModel(projectSlug, project, lesson, block, body, llmConfig, { isNew: true })
+      Object.assign(block, next)
+      storeContext(block, given)
+    } else {
+      throw validation('Choose to write the block yourself or have Byte generate it.')
+    }
   } else {
-    throw validation('Choose a tabs block or an artifact to insert.')
+    throw validation('Choose a block to insert.')
   }
 
   store.writeLesson(projectSlug, lesson)
@@ -925,6 +1027,7 @@ module.exports = {
   editTabs,
   editTextBlock,
   generateTextBlock,
+  moveBlock,
   insertBlock,
   removeBlock,
 }

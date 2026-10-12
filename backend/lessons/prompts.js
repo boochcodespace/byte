@@ -277,7 +277,7 @@ Respond in this JSON schema:
 // Rewrite ONE text block (hook, chunk, apply, or recall) of a drafted lesson.
 // The BLOCK CONTEXT section (placement plus any focus, source section, or
 // notes) arrives through the steering block, like every other block.
-function textBlockPrompt(ctx, { topic, objective, block, purpose, wordTarget }) {
+function textBlockPrompt(ctx, { topic, objective, block, isNew, purpose, wordTarget, avoid }) {
   const { sourceContent, steeringBlock, learnerContextBlock } = ctx
   const rules = {
     hook: '- "body": 1 to 2 sentences. Name the job task and the payoff. Never open with "In this lesson" or a topic announcement',
@@ -295,7 +295,11 @@ function textBlockPrompt(ctx, { topic, objective, block, purpose, wordTarget }) 
     recall: '{ "body": "string", "answer": "string" }',
   }[block.kind]
 
-  return `Rewrite one ${block.kind} block of a lesson from the sources below. This is \
+  const avoidBlock = avoid && avoid.items.length
+    ? `\n${avoid.label} (do not repeat their ideas):\n${avoid.items.map(t => `- ${t}`).join('\n')}\n`
+    : ''
+
+  return `${isNew ? 'Write' : 'Rewrite'} one ${block.kind} block of a lesson from the sources below. This is \
 SECONDARY content creation: treat the sources as reference material to \
 faithfully distill, not as inspiration for invention.
 
@@ -309,10 +313,16 @@ ${steeringBlock}
 
 ${learnerContextBlock}
 
-═══ THE BLOCK BEING REPLACED ═══
+${isNew
+    ? `═══ THE NEW BLOCK ═══
+This block is new. Choose one idea from the sources that the lesson does not \
+already teach. If the BLOCK CONTEXT above gives a Focus, build the block \
+around it.`
+    : `═══ THE BLOCK BEING REPLACED ═══
 ${block.title ? `Title: ${block.title}\n` : ''}${purpose ? `Purpose: ${purpose}\n` : ''}Current text: ${block.body}
 Write a fresh version. Do not copy the current text. If the BLOCK CONTEXT \
-above gives a Focus, build the block around it.
+above gives a Focus, build the block around it.`}
+${avoidBlock}
 
 ═══ SOURCES (reference material) ═══
 ${sourceContent}

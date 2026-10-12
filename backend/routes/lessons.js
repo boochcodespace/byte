@@ -14,6 +14,7 @@
 //   POST   /:lessonId/blocks/:blockId/artifact accept a placement, or replace
 //   PUT    /:lessonId/blocks/:blockId/text     edit a text block inline
 //   POST   /:lessonId/blocks/:blockId/text/generate  rewrite a text block
+//   POST   /:lessonId/blocks/:blockId/move    swap with a neighbour (up|down)
 //   DELETE /:lessonId/blocks/:blockId          remove a block (an artifact
 //                                              itself stays; not the last hook)
 //
@@ -151,8 +152,7 @@ router.post('/:lessonId/blocks', async (req, res) => {
     const { projectSlug, lessonId } = req.params
     const body = req.body || {}
     const usesModel =
-      (body.kind === 'tabs' && body.mode === 'generate') ||
-      (body.kind === 'artifact' && body.mode === 'new')
+      (body.kind === 'artifact' ? body.mode === 'new' : body.mode === 'generate')
     let llmConfig = null
     if (usesModel) {
       llmConfig = requireLlm(res)
@@ -205,6 +205,16 @@ router.post('/:lessonId/blocks/:blockId/text/generate', async (req, res) => {
     return sendOk(res, await service.generateTextBlock(projectSlug, lessonId, blockId, req.body || {}, llmConfig))
   } catch (err) {
     return fail(res, 'lessons:text-generate', err)
+  }
+})
+
+router.post('/:lessonId/blocks/:blockId/move', (req, res) => {
+  try {
+    checkIds(req)
+    const { projectSlug, lessonId, blockId } = req.params
+    return sendOk(res, service.moveBlock(projectSlug, lessonId, blockId, (req.body || {}).direction))
+  } catch (err) {
+    return fail(res, 'lessons:move', err)
   }
 })
 

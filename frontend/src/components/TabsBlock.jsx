@@ -1,5 +1,5 @@
 import { useState, useRef, useId } from 'react'
-import { Paragraphs, RemoveControl, contextSummary } from './LessonBlocks'
+import { Paragraphs, RemoveControl, GrowTextarea, contextSummary } from './LessonBlocks'
 import LoadingState from './LoadingState'
 
 // A tabs block: 2 to 5 parallel ideas, one tab each, for layering or
@@ -147,7 +147,7 @@ export function TabsEditor({ initial, onSave, onCancel, busy, saveLabel = 'Save'
           <div className="form-group">
             <label>
               Tab {i + 1} visual note <span className="label-optional">(optional)</span>
-              <input type="text" value={t.visual} onChange={e => patch(i, { visual: e.target.value })} disabled={busy} />
+              <GrowTextarea value={t.visual} onChange={e => patch(i, { visual: e.target.value })} disabled={busy} />
             </label>
           </div>
           <div className="lesson-actions">

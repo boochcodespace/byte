@@ -9,7 +9,7 @@ import ErrorState from '../components/ErrorState'
 import TimeMeter from '../components/TimeMeter'
 import ArtifactPicker from '../components/ArtifactPicker'
 import ContextPanel from '../components/ContextPanel'
-import { TextBlock, ArtifactBlock } from '../components/LessonBlocks'
+import { TextBlock, TextEditor, ArtifactBlock } from '../components/LessonBlocks'
 import { TabsBlock, TabsEditor } from '../components/TabsBlock'
 import InsertControl from '../components/InsertControl'
 import { ARTIFACT_TYPE_OPTIONS } from '../artifact-renderers/registry'
@@ -42,6 +42,18 @@ const INSERT_OPTIONS = [
       { id: 'generate', label: 'Generate...' },
     ],
   },
+  ...[
+    { id: 'chunk', label: 'Chunk' },
+    { id: 'apply', label: 'Apply block' },
+    { id: 'recall', label: 'Recall prompt' },
+  ].map(t => ({
+    ...t,
+    kind: t.id,
+    modes: [
+      { id: 'write', label: 'Write it myself' },
+      { id: 'generate', label: 'Generate...' },
+    ],
+  })),
   ...ARTIFACT_TYPE_OPTIONS.map(t => ({
     id: t.value,
     label: t.label,
@@ -54,10 +66,24 @@ const INSERT_OPTIONS = [
   })),
 ]
 
+const RECALL_DAYS = [2, 7, 21]
+const TEXT_KINDS = ['chunk', 'apply', 'recall']
+
 const STATUS_LABEL = {
   blueprint: 'Blueprint',
   approved: 'Blueprint approved',
   drafted: 'Drafted',
+}
+
+// A short name for a block, for button labels and announcements.
+const ARTIFACT_NAME = Object.fromEntries(ARTIFACT_TYPE_OPTIONS.map(t => [t.value, t.label]))
+function blockName(b) {
+  if (b.kind === 'chunk') return `the chunk "${b.title}"`
+  if (b.kind === 'apply') return 'the apply block'
+  if (b.kind === 'hook') return 'the hook'
+  if (b.kind === 'recall') return `the day ${b.recall_day} recall prompt`
+  if (b.kind === 'tabs') return b.title ? `the tabs block "${b.title}"` : 'the tabs block'
+  return `the ${(ARTIFACT_NAME[b.artifact_type] || 'artifact').toLowerCase()}`
 }
 
 const kindLabel = s =>
@@ -94,6 +120,9 @@ function LessonDetail() {
   const [contextFor, setContextFor] = useState(null)     // block whose context panel is open
   const [editFor, setEditFor] = useState(null)           // tabs block whose editor is open
   const [insertFlow, setInsertFlow] = useState(null)      // { after, option, mode } while inserting
+  const [recallDay, setRecallDay] = useState('')       // day chosen for an inserted recall prompt
+  const [announce, setAnnounce] = useState('')           // screen-reader message after a move
+  const pendingMove = useRef(null)                       // { id, dir } to restore focus after a move
   const [limits, setLimits] = useState(null)             // in-lesson size limits from the API
 
   const loadAction = useAsyncAction()
@@ -175,6 +204,7 @@ function LessonDetail() {
     setActiveBlock(blockId)
     const resp = await blockAction.run(fn)
     setActiveBlock(null)
+    if (!resp) pendingMove.current = null
     if (resp) {
       applyResponse(resp)
       setPickerFor(null)
@@ -214,6 +244,10 @@ function LessonDetail() {
   const pickArtifact = (block, ref) =>
     runBlock(block.id, () =>
       api.post(`${base}/blocks/${block.id}/artifact`, { mode: 'existing', source: ref.source, artifact: ref.folder }))
+  const moveBlock = (block, dir) => {
+    pendingMove.current = { id: block.id, dir }
+    runBlock(block.id, () => api.post(`${base}/blocks/${block.id}/move`, { direction: dir }))
+  }
   const generateText = (block, context) =>
     runBlock(block.id, () =>
       api.post(`${base}/blocks/${block.id}/text/generate`, { context, ...(block.edited ? { overwrite: true } : {}) }))
@@ -221,6 +255,21 @@ function LessonDetail() {
     runBlock(block.id, () => api.put(`${base}/blocks/${block.id}/text`, payload))
   const removeBlock = block =>
     runBlock(block.id, () => api.delete(`${base}/blocks/${block.id}`))
+
+  // After a move, put keyboard focus back on the button that was used (or
+  // the other one if it just reached its limit) and tell screen readers.
+  useEffect(() => {
+    const m = pendingMove.current
+    if (!m || !lesson) return
+    pendingMove.current = null
+    const i = lesson.blocks.findIndex(b => b.id === m.id)
+    if (i === -1) return
+    const el = document.querySelector(`[data-move="${m.id}:${m.dir}"]`)
+    const other = document.querySelector(`[data-move="${m.id}:${m.dir === 'up' ? 'down' : 'up'}"]`)
+    const target = el && !el.disabled ? el : other
+    if (target) target.focus()
+    setAnnounce(`Moved ${blockName(lesson.blocks[i])} ${m.dir}. It is now block ${i + 1} of ${lesson.blocks.length}.`)
+  }, [lesson])
 
   // ── draft editing helpers ──────────────────────────────────────────
 
@@ -389,7 +438,54 @@ function LessonDetail() {
     const cancel = () => setInsertFlow(null)
     let ui = null
 
-    if (option.kind === 'tabs' && mode.id === 'write') {
+    if (TEXT_KINDS.includes(option.kind)) {
+      const used = lesson.blocks.filter(b => b.kind === 'recall').map(b => b.recall_day)
+      const free = RECALL_DAYS.filter(d => !used.includes(d))
+      const day = recallDay && free.includes(Number(recallDay)) ? Number(recallDay) : free[0]
+      const blank = { kind: option.kind, title: '', body: '', visual: '', answer: '' }
+      const noDay = option.kind === 'recall' && free.length === 0
+      const extra = option.kind === 'recall' ? { recall_day: day } : {}
+      ui = (
+        <>
+          {option.kind === 'recall' && (
+            <div className="form-group">
+              <p className="field-help">Recall prompts always go at the end, in day order.</p>
+              {noDay ? (
+                <p className="field-help">All three recall days (2, 7, 21) are already in the lesson. Remove one first.</p>
+              ) : (
+                <label>
+                  Recall day
+                  <select value={day} onChange={e => setRecallDay(e.target.value)} disabled={working}>
+                    {free.map(d => <option key={d} value={d}>Day {d}</option>)}
+                  </select>
+                </label>
+              )}
+            </div>
+          )}
+          {!noDay && (mode.id === 'write' ? (
+            <TextEditor
+              block={blank}
+              busy={working}
+              saveLabel="Insert"
+              onSave={payload => submitInsert(afterBlock.id, { kind: option.kind, mode: 'write', ...extra, ...payload })}
+              onCancel={cancel}
+            />
+          ) : (
+            <ContextPanel
+              type="text"
+              limits={limits}
+              lessonExperience={lesson.context?.experience}
+              busy={working}
+              onSubmit={ctx => submitInsert(afterBlock.id, { kind: option.kind, mode: 'generate', ...extra, context: ctx })}
+              onCancel={cancel}
+            />
+          ))}
+          {noDay && (
+            <button type="button" className="btn btn-secondary btn-sm" onClick={cancel}>Close</button>
+          )}
+        </>
+      )
+    } else if (option.kind === 'tabs' && mode.id === 'write') {
       ui = (
         <TabsEditor
           initial={{ title: '', tabs: [] }}
@@ -700,12 +796,37 @@ function LessonDetail() {
       {lesson.status === 'drafted' && (
         <>
           <TimeMeter lesson={lesson} />
+          <div className="sr-only" role="status" aria-live="polite">{announce}</div>
           <div className="lesson-blocks">
             {lesson.blocks.map(block => (
               <Fragment key={block.id}>
                 {renderBlock(block)}
                 {block.kind !== 'recall' && (
                   <>
+                    {(block.can_move_up || block.can_move_down) && (
+                      <div className="move-controls" role="group" aria-label={`Move ${blockName(block)}`}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          data-move={`${block.id}:up`}
+                          aria-label={`Move ${blockName(block)} up`}
+                          onClick={() => moveBlock(block, 'up')}
+                          disabled={!block.can_move_up || blockAction.loading}
+                        >
+                          Move up
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          data-move={`${block.id}:down`}
+                          aria-label={`Move ${blockName(block)} down`}
+                          onClick={() => moveBlock(block, 'down')}
+                          disabled={!block.can_move_down || blockAction.loading}
+                        >
+                          Move down
+                        </button>
+                      </div>
+                    )}
                     <InsertControl
                       options={INSERT_OPTIONS}
                       disabled={blockAction.loading}
