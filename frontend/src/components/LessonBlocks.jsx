@@ -25,54 +25,159 @@ export function Paragraphs({ text }) {
 
 const KIND_LABEL = { hook: 'Start here', chunk: null, apply: 'Apply today' }
 
-export function TextBlock({ block }) {
+// Inline editor for one text block. Fields shown depend on the kind:
+// body for all, title and visual note for chunks, answer for recall.
+export function TextEditor({ block, onSave, onCancel, busy }) {
+  const [title, setTitle] = useState(block.title || '')
+  const [body, setBody] = useState(block.body || '')
+  const [visual, setVisual] = useState(block.visual || '')
+  const [answer, setAnswer] = useState(block.answer || '')
+  const isRecall = block.kind === 'recall'
+
+  function save(e) {
+    e.preventDefault()
+    onSave({
+      body,
+      ...(block.kind === 'chunk' ? { title, visual } : {}),
+      ...(isRecall ? { answer } : {}),
+    })
+  }
+
+  return (
+    <form className="tabs-editor" onSubmit={save} aria-label={`Edit ${block.kind} block`}>
+      {block.kind === 'chunk' && (
+        <div className="form-group">
+          <label>
+            Title
+            <input type="text" value={title} maxLength={120} onChange={e => setTitle(e.target.value)} disabled={busy} />
+          </label>
+        </div>
+      )}
+      <div className="form-group">
+        <label>
+          {isRecall ? 'Recall question' : 'Text'}
+          <textarea rows={isRecall ? 3 : 6} value={body} onChange={e => setBody(e.target.value)} disabled={busy} />
+        </label>
+      </div>
+      {block.kind === 'chunk' && (
+        <div className="form-group">
+          <label>
+            Visual note <span className="label-optional">(optional)</span>
+            <input type="text" value={visual} maxLength={300} onChange={e => setVisual(e.target.value)} disabled={busy} />
+          </label>
+        </div>
+      )}
+      {isRecall && (
+        <div className="form-group">
+          <label>
+            Answer
+            <textarea rows={3} value={answer} onChange={e => setAnswer(e.target.value)} disabled={busy} />
+          </label>
+        </div>
+      )}
+      <div className="lesson-actions">
+        <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
+          {busy ? 'Saving...' : 'Save'}
+        </button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={onCancel} disabled={busy}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// Props:
+//   block, busy, disabled   the block, this block working, any block working
+//   editing / onEdit / onSave / onCancelEdit   inline editing
+//   onRemove, removeMessage   confirm text for Remove
+//   canRemove               false for the last hook (shown as a note)
+//   children                errors or panels under the block
+export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCancelEdit, onRemove, removeMessage, canRemove = true, children }) {
   const [showAnswer, setShowAnswer] = useState(false)
+  const locked = busy || disabled
+  const badge = block.edited && <span className="lesson-badge">Edited by you</span>
+  const actions = !editing && onEdit && (
+    <div className="lesson-actions">
+      <button type="button" className="btn btn-secondary btn-sm" onClick={onEdit} disabled={locked}>
+        Edit
+      </button>
+      {canRemove ? (
+        <RemoveControl
+          onRemove={onRemove}
+          locked={locked}
+          message={removeMessage || (block.edited
+            ? 'Remove this block? Your edits will be lost.'
+            : 'Remove this block from the lesson?')}
+        />
+      ) : (
+        <span className="field-help">The hook can't be removed. Edit it instead.</span>
+      )}
+    </div>
+  )
+  const editor = editing && (
+    <TextEditor block={block} onSave={onSave} onCancel={onCancelEdit} busy={busy} />
+  )
 
   if (block.kind === 'recall') {
     return (
       <div className="lesson-block lesson-block-recall">
         <div className="lesson-label">
           Day {block.recall_day} recall
+          {badge}
           <span className="lesson-minutes">not counted in lesson time</span>
         </div>
-        <p className="lesson-recall-question">{block.body}</p>
-        {showAnswer ? (
-          <div className="lesson-recall-answer">
-            <div className="lesson-label">Answer</div>
-            <p>{block.answer}</p>
-          </div>
-        ) : (
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowAnswer(true)}>
-            Show answer
-          </button>
+        {editor || (
+          <>
+            <p className="lesson-recall-question">{block.body}</p>
+            {showAnswer ? (
+              <div className="lesson-recall-answer">
+                <div className="lesson-label">Answer</div>
+                <p>{block.answer}</p>
+              </div>
+            ) : (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowAnswer(true)}>
+                Show answer
+              </button>
+            )}
+          </>
         )}
+        {actions}
+        {children}
       </div>
     )
   }
 
   return (
     <div className={`lesson-block lesson-block-${block.kind}`}>
-      {KIND_LABEL[block.kind] && (
+      {(KIND_LABEL[block.kind] || block.edited) && (
         <div className="lesson-label">
           {KIND_LABEL[block.kind]}
-          <span className="lesson-minutes">{block.minutes} min</span>
+          {badge}
+          {KIND_LABEL[block.kind] && <span className="lesson-minutes">{block.minutes} min</span>}
         </div>
       )}
-      {block.kind === 'chunk' && (
-        <h3 className="lesson-chunk-title">
-          {block.title}
-          <span className="lesson-minutes">{block.minutes} min</span>
-        </h3>
+      {editor || (
+        <>
+          {block.kind === 'chunk' && (
+            <h3 className="lesson-chunk-title">
+              {block.title}
+              <span className="lesson-minutes">{block.minutes} min</span>
+            </h3>
+          )}
+          <div className="lesson-body">
+            <Paragraphs text={block.body} />
+          </div>
+          {block.kind === 'chunk' && block.visual && (
+            <div className="lesson-visual">
+              <div className="lesson-label">Visual</div>
+              <p>{block.visual}</p>
+            </div>
+          )}
+        </>
       )}
-      <div className="lesson-body">
-        <Paragraphs text={block.body} />
-      </div>
-      {block.kind === 'chunk' && block.visual && (
-        <div className="lesson-visual">
-          <div className="lesson-label">Visual</div>
-          <p>{block.visual}</p>
-        </div>
-      )}
+      {actions}
+      {children}
     </div>
   )
 }
@@ -155,6 +260,7 @@ export function ArtifactBlock({
   onGenerate,
   onPickExisting,
   onRemove,
+  removeMessage,
   children,
 }) {
   const meta = getTypeMeta(block.artifact_type)
@@ -188,7 +294,7 @@ export function ArtifactBlock({
             Regenerate
           </button>
           <ReplaceControl onPickExisting={onPickExisting} onGenerate={onGenerate} locked={locked} />
-          <RemoveControl onRemove={onRemove} locked={locked} />
+          <RemoveControl onRemove={onRemove} locked={locked} message={removeMessage} />
         </div>
         {spinner}
         {children}
@@ -210,7 +316,7 @@ export function ArtifactBlock({
           <button type="button" className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={locked}>
             Generate a new one
           </button>
-          <RemoveControl onRemove={onRemove} locked={locked} />
+          <RemoveControl onRemove={onRemove} locked={locked} message={removeMessage} />
         </div>
         {spinner}
         {children}
@@ -233,7 +339,7 @@ export function ArtifactBlock({
         <button type="button" className="btn btn-secondary btn-sm" onClick={onPickExisting} disabled={locked}>
           Pick existing
         </button>
-        <RemoveControl onRemove={onRemove} locked={locked} />
+        <RemoveControl onRemove={onRemove} locked={locked} message={removeMessage} />
       </div>
       {spinner}
       {children}

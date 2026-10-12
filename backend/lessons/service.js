@@ -347,6 +347,8 @@ function editBlueprint(projectSlug, lessonId, body) {
   return presentLesson(projectSlug, lesson)
 }
 
+const TEXT_KINDS = new Set(['hook', 'chunk', 'apply', 'recall'])
+
 // ── text ─────────────────────────────────────────────────────────────
 
 // Turn the model's blocks + placements into the lesson's block list:
@@ -705,6 +707,42 @@ function editTabs(projectSlug, lessonId, blockId, body) {
   return presentLesson(projectSlug, lesson)
 }
 
+// ── text blocks ──────────────────────────────────────────────────────
+
+const TEXT_LIMITS = { title: 120, body: 4000, visual: 300, answer: 1500 }
+
+// Edit a text block (hook, chunk, apply, recall) inline. Editable fields:
+// body for all; title and visual for chunks; answer for recall. Anything
+// else in the request is ignored. A save that changes nothing does not
+// flag the block as edited.
+function editTextBlock(projectSlug, lessonId, blockId, body) {
+  requireProject(projectSlug)
+  const lesson = requireLesson(projectSlug, lessonId)
+  const block = lesson.blocks.find(b => b.id === blockId)
+  if (!block || !TEXT_KINDS.has(block.kind)) throw notFound('That text block was not found.')
+
+  const next = {}
+  const text = (field, label, { required, max }) => {
+    const v = str(body?.[field])
+    if (required && !v) throw validation(`${label} cannot be empty.`)
+    if (v.length > max) throw validation(`${label} can be up to ${max.toLocaleString('en-US')} characters.`)
+    next[field] = v
+  }
+  text('body', block.kind === 'recall' ? 'The recall question' : 'The text', { required: true, max: TEXT_LIMITS.body })
+  if (block.kind === 'chunk') {
+    text('title', 'The title', { required: true, max: TEXT_LIMITS.title })
+    text('visual', 'The visual note', { required: false, max: TEXT_LIMITS.visual })
+  }
+  if (block.kind === 'recall') text('answer', 'The answer', { required: true, max: TEXT_LIMITS.answer })
+
+  const changed = Object.keys(next).some(k => (block[k] ?? '') !== next[k])
+  Object.assign(block, next)
+  if (changed) block.edited = true
+
+  store.writeLesson(projectSlug, lesson)
+  return presentLesson(projectSlug, lesson)
+}
+
 // ── insert ───────────────────────────────────────────────────────────
 
 function nextBlockId(lesson) {
@@ -783,19 +821,20 @@ async function insertBlock(projectSlug, lessonId, body, llmConfig) {
   return presentLesson(projectSlug, lesson)
 }
 
-// Remove an artifact block or a tabs block from the lesson (proposed,
+// Remove a block from the lesson (text, tabs, or artifact; proposed,
 // ready, or orphaned). This takes the BLOCK out of the lesson and nothing
 // else: an artifact's files are never deleted, it stays in the project,
 // and it is still offered by the picker. Removing a proposed block is the
-// same as dismissing it. Text blocks are removed through the lesson editor
-// in a later phase.
+// same as dismissing it. The last hook cannot be removed. Whether the
+// lesson keeps a retrieval artifact is a warning the page confirms, not a
+// rule enforced here.
 function removeBlock(projectSlug, lessonId, blockId) {
   requireProject(projectSlug)
   const lesson = requireLesson(projectSlug, lessonId)
   const block = lesson.blocks.find(b => b.id === blockId)
   if (!block) throw notFound('That block was not found.')
-  if (block.kind !== 'artifact' && block.kind !== 'tabs') {
-    throw validation('Only artifact and tabs blocks can be removed for now.')
+  if (block.kind === 'hook' && lesson.blocks.filter(b => b.kind === 'hook').length <= 1) {
+    throw validation('A lesson needs its hook. Edit it instead of removing it.')
   }
   lesson.blocks = lesson.blocks.filter(b => b.id !== blockId)
   store.writeLesson(projectSlug, lesson)
@@ -813,6 +852,7 @@ module.exports = {
   acceptPlacement,
   generateTabs,
   editTabs,
+  editTextBlock,
   insertBlock,
   removeBlock,
 }

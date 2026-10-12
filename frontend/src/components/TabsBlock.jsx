@@ -20,6 +20,8 @@ import LoadingState from './LoadingState'
 
 const MIN_TABS = 2
 const MAX_TABS = 5
+const SOFT_TAB_WORDS = 50
+const wordsIn = t => (t.trim() ? t.trim().split(/\s+/).length : 0)
 
 function TabsView({ block }) {
   const baseId = useId()
@@ -136,6 +138,11 @@ export function TabsEditor({ initial, onSave, onCancel, busy, saveLabel = 'Save'
               Tab {i + 1} text
               <textarea rows={3} value={t.body} onChange={e => patch(i, { body: e.target.value })} disabled={busy} />
             </label>
+            {wordsIn(t.body) > SOFT_TAB_WORDS && (
+              <p className="field-help" role="status">
+                This tab is {wordsIn(t.body)} words. Tabs read best at {SOFT_TAB_WORDS} or fewer. You can still save it.
+              </p>
+            )}
           </div>
           <div className="form-group">
             <label>
@@ -180,7 +187,7 @@ export function TabsEditor({ initial, onSave, onCancel, busy, saveLabel = 'Save'
 //   onGenerate                 open the context panel (parent renders it)
 //   onRemove
 //   children                   the context panel and/or an error, below the block
-export function TabsBlock({ block, busy, disabled, editing, onEdit, onSave, onCancelEdit, onGenerate, onRemove, children }) {
+export function TabsBlock({ block, busy, disabled, editing, onEdit, onSave, onCancelEdit, onGenerate, onRemove, removeMessage, children }) {
   const locked = busy || disabled
   const spinner = busy && (
     <LoadingState subtle message="Working on your tabs..." hint="This may take up to 30 seconds." />
@@ -204,7 +211,7 @@ export function TabsBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
             <button type="button" className="btn btn-secondary btn-sm" onClick={onEdit} disabled={locked}>
               Write it myself
             </button>
-            <RemoveControl onRemove={onRemove} locked={locked} message="Remove this suggestion from the lesson?" />
+            <RemoveControl onRemove={onRemove} locked={locked} message={removeMessage || 'Remove this suggestion from the lesson?'} />
           </div>
         )}
         {spinner}
@@ -240,9 +247,9 @@ export function TabsBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
             <RemoveControl
               onRemove={onRemove}
               locked={locked}
-              message={block.edited
+              message={removeMessage || (block.edited
                 ? 'Remove this tabs block? Your edits will be lost.'
-                : 'Remove this tabs block from the lesson?'}
+                : 'Remove this tabs block from the lesson?')}
             />
           </div>
         </>

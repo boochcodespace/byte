@@ -12,8 +12,9 @@
 //   POST   /:lessonId/blocks/:blockId/tabs/generate  write (or rewrite) tabs
 //   PUT    /:lessonId/blocks/:blockId/tabs     edit tabs inline
 //   POST   /:lessonId/blocks/:blockId/artifact accept a placement, or replace
-//   DELETE /:lessonId/blocks/:blockId          remove an artifact or tabs block
-//                                              (an artifact itself stays)
+//   PUT    /:lessonId/blocks/:blockId/text     edit a text block inline
+//   DELETE /:lessonId/blocks/:blockId          remove a block (an artifact
+//                                              itself stays; not the last hook)
 //
 // All logic lives in lessons/service.js. This file only parses the
 // request, checks ids, resolves the AI provider, and turns errors into
@@ -181,6 +182,16 @@ router.put('/:lessonId/blocks/:blockId/tabs', (req, res) => {
     return sendOk(res, service.editTabs(projectSlug, lessonId, blockId, req.body || {}))
   } catch (err) {
     return fail(res, 'lessons:tabs-edit', err)
+  }
+})
+
+router.put('/:lessonId/blocks/:blockId/text', (req, res) => {
+  try {
+    checkIds(req)
+    const { projectSlug, lessonId, blockId } = req.params
+    return sendOk(res, service.editTextBlock(projectSlug, lessonId, blockId, req.body || {}))
+  } catch (err) {
+    return fail(res, 'lessons:text-edit', err)
   }
 })
 
