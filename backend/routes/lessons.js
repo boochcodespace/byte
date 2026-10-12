@@ -8,9 +8,12 @@
 //   POST   /:lessonId/blueprint/generate       model call
 //   PUT    /:lessonId/blueprint                edit and/or approve
 //   POST   /:lessonId/text/generate            model call
+//   POST   /:lessonId/blocks                   insert a tabs block or an artifact
+//   POST   /:lessonId/blocks/:blockId/tabs/generate  write (or rewrite) tabs
+//   PUT    /:lessonId/blocks/:blockId/tabs     edit tabs inline
 //   POST   /:lessonId/blocks/:blockId/artifact accept a placement, or replace
-//   DELETE /:lessonId/blocks/:blockId          remove an artifact block
-//                                              (the artifact itself stays)
+//   DELETE /:lessonId/blocks/:blockId          remove an artifact or tabs block
+//                                              (an artifact itself stays)
 //
 // All logic lives in lessons/service.js. This file only parses the
 // request, checks ids, resolves the AI provider, and turns errors into
@@ -134,6 +137,50 @@ router.post('/:lessonId/blocks/:blockId/artifact', async (req, res) => {
     return sendOk(res, await service.acceptPlacement(projectSlug, lessonId, blockId, body, llmConfig))
   } catch (err) {
     return fail(res, 'lessons:artifact', err)
+  }
+})
+
+// Insert a new block after an existing one. Only the model-backed modes
+// need an AI provider; writing tabs by hand or picking an existing
+// artifact does not.
+router.post('/:lessonId/blocks', async (req, res) => {
+  try {
+    checkIds(req)
+    const { projectSlug, lessonId } = req.params
+    const body = req.body || {}
+    const usesModel =
+      (body.kind === 'tabs' && body.mode === 'generate') ||
+      (body.kind === 'artifact' && body.mode === 'new')
+    let llmConfig = null
+    if (usesModel) {
+      llmConfig = requireLlm(res)
+      if (!llmConfig) return
+    }
+    return sendOk(res, await service.insertBlock(projectSlug, lessonId, body, llmConfig))
+  } catch (err) {
+    return fail(res, 'lessons:insert', err)
+  }
+})
+
+router.post('/:lessonId/blocks/:blockId/tabs/generate', async (req, res) => {
+  try {
+    checkIds(req)
+    const llmConfig = requireLlm(res)
+    if (!llmConfig) return
+    const { projectSlug, lessonId, blockId } = req.params
+    return sendOk(res, await service.generateTabs(projectSlug, lessonId, blockId, req.body || {}, llmConfig))
+  } catch (err) {
+    return fail(res, 'lessons:tabs-generate', err)
+  }
+})
+
+router.put('/:lessonId/blocks/:blockId/tabs', (req, res) => {
+  try {
+    checkIds(req)
+    const { projectSlug, lessonId, blockId } = req.params
+    return sendOk(res, service.editTabs(projectSlug, lessonId, blockId, req.body || {}))
+  } catch (err) {
+    return fail(res, 'lessons:tabs-edit', err)
   }
 })
 

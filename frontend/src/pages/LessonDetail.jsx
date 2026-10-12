@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { Fragment, useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import { api } from '../lib/apiFetch'
 import { stabilizeArtifacts } from '../lib/stabilize'
@@ -10,6 +10,9 @@ import TimeMeter from '../components/TimeMeter'
 import ArtifactPicker from '../components/ArtifactPicker'
 import ContextPanel from '../components/ContextPanel'
 import { TextBlock, ArtifactBlock } from '../components/LessonBlocks'
+import { TabsBlock, TabsEditor } from '../components/TabsBlock'
+import InsertControl from '../components/InsertControl'
+import { ARTIFACT_TYPE_OPTIONS } from '../artifact-renderers/registry'
 import './Lesson.css'
 
 // LessonDetail: one lesson, from blueprint to finished document.
@@ -26,6 +29,30 @@ import './Lesson.css'
 // page and time-meter updates.
 
 const EXPERIENCE = ['Novice', 'Practicing', 'Expert']
+
+// What "Insert here" offers. Each option lists HOW it can be added. The
+// InsertControl only reports the choice; this page runs the matching flow.
+const INSERT_OPTIONS = [
+  {
+    id: 'tabs',
+    label: 'Tabs block',
+    kind: 'tabs',
+    modes: [
+      { id: 'write', label: 'Write it myself' },
+      { id: 'generate', label: 'Generate...' },
+    ],
+  },
+  ...ARTIFACT_TYPE_OPTIONS.map(t => ({
+    id: t.value,
+    label: t.label,
+    kind: 'artifact',
+    artifact_type: t.value,
+    modes: [
+      { id: 'existing', label: 'Pick existing' },
+      { id: 'new', label: 'Generate new...' },
+    ],
+  })),
+]
 
 const STATUS_LABEL = {
   blueprint: 'Blueprint',
@@ -65,6 +92,8 @@ function LessonDetail() {
   const [failedBlock, setFailedBlock] = useState(null)   // block whose last action failed
   const [pickerFor, setPickerFor] = useState(null)       // block whose picker is open
   const [contextFor, setContextFor] = useState(null)     // block whose context panel is open
+  const [editFor, setEditFor] = useState(null)           // tabs block whose editor is open
+  const [insertFlow, setInsertFlow] = useState(null)      // { after, option, mode } while inserting
   const [limits, setLimits] = useState(null)             // in-lesson size limits from the API
 
   const loadAction = useAsyncAction()
@@ -150,6 +179,8 @@ function LessonDetail() {
       applyResponse(resp)
       setPickerFor(null)
       setContextFor(null)
+      setEditFor(null)
+      setInsertFlow(null)
     } else {
       setFailedBlock(blockId)
     }
@@ -158,9 +189,28 @@ function LessonDetail() {
   // Generate (or regenerate) with the context typed in the panel.
   const generateArtifact = (block, context) =>
     runBlock(block.id, () => api.post(`${base}/blocks/${block.id}/artifact`, { mode: 'new', context }))
-  // Open the context panel for a block. Only one panel or picker is open.
-  const openContext = block => { setPickerFor(null); setContextFor(block.id) }
-  const openPicker = block => { setContextFor(null); setPickerFor(block.id) }
+  // Open the context panel / picker / editor for a block. Only one is open.
+  const closeAll = () => { setPickerFor(null); setContextFor(null); setEditFor(null); setInsertFlow(null) }
+  const openContext = block => { closeAll(); setContextFor(block.id) }
+  const openPicker = block => { closeAll(); setPickerFor(block.id) }
+  const openEdit = block => { closeAll(); setEditFor(block.id) }
+
+  // Tabs: generate or regenerate (confirmed overwrite when hand-edited),
+  // and save inline edits.
+  const generateTabs = (block, context) =>
+    runBlock(block.id, () =>
+      api.post(`${base}/blocks/${block.id}/tabs/generate`, { context, ...(block.edited ? { overwrite: true } : {}) }))
+  const saveTabs = (block, payload) =>
+    runBlock(block.id, () => api.put(`${base}/blocks/${block.id}/tabs`, payload))
+
+  // Insert here: choose a kind and mode, then run that flow under the control.
+  const insertKey = afterId => `insert:${afterId}`
+  const startInsert = (afterBlock, { option, mode }) => {
+    closeAll()
+    setInsertFlow({ after: afterBlock.id, option, mode })
+  }
+  const submitInsert = (afterId, body) =>
+    runBlock(insertKey(afterId), () => api.post(`${base}/blocks`, { after: afterId, ...body }))
   const pickArtifact = (block, ref) =>
     runBlock(block.id, () =>
       api.post(`${base}/blocks/${block.id}/artifact`, { mode: 'existing', source: ref.source, artifact: ref.folder }))
@@ -191,6 +241,162 @@ function LessonDetail() {
   if (!lesson) return null
 
   const noBlueprint = !lesson.blueprint
+
+  // One lesson block: text, tabs, or an artifact slot.
+  function renderBlock(block) {
+    const working = activeBlock === block.id && blockAction.loading
+    const failed = failedBlock === block.id && blockAction.error && (
+      <ErrorState
+        message={blockAction.error.userMessage}
+        onRetry={() => retryBlockRef.current && retryBlockRef.current()}
+        {...actionPropsFor(blockAction.error.errorType)}
+      />
+    )
+
+    if (block.kind === 'tabs') {
+      return (
+        <TabsBlock
+          block={block}
+          busy={working}
+          disabled={blockAction.loading}
+          editing={editFor === block.id}
+          onEdit={() => openEdit(block)}
+          onSave={payload => saveTabs(block, payload)}
+          onCancelEdit={() => setEditFor(null)}
+          onGenerate={() => openContext(block)}
+          onRemove={() => removeBlock(block)}
+        >
+          {contextFor === block.id && (
+            <ContextPanel
+              type="tabs"
+              initial={block.generation_context}
+              limits={limits}
+              lessonExperience={lesson.context?.experience}
+              busy={working}
+              submitLabel={block.state === 'ready' ? 'Regenerate' : 'Generate'}
+              overwriteWarning={block.state === 'ready' && block.edited
+                ? 'Regenerating replaces the edits you made to this tabs block, and they cannot be recovered.'
+                : undefined}
+              onSubmit={ctx => generateTabs(block, ctx)}
+              onCancel={() => setContextFor(null)}
+            />
+          )}
+          {failed}
+        </TabsBlock>
+      )
+    }
+
+    if (block.kind !== 'artifact') return <TextBlock block={block} />
+
+    const artifact = block.ref ? artifacts[`${block.ref.source}/${block.ref.artifact}`] : null
+    return (
+      <ArtifactBlock
+        block={block}
+        artifact={artifact}
+        busy={working}
+        disabled={blockAction.loading}
+        onGenerate={() => openContext(block)}
+        onPickExisting={() => openPicker(block)}
+        onRemove={() => removeBlock(block)}
+      >
+        {contextFor === block.id && (
+          <ContextPanel
+            type={block.artifact_type}
+            initial={block.generation_context}
+            limits={limits}
+            lessonExperience={lesson.context?.experience}
+            busy={working}
+            submitLabel={block.state === 'ready' ? 'Regenerate' : 'Generate'}
+            onSubmit={ctx => generateArtifact(block, ctx)}
+            onCancel={() => setContextFor(null)}
+          />
+        )}
+        {pickerFor === block.id && (
+          <ArtifactPicker
+            projectSlug={projectSlug}
+            type={block.artifact_type}
+            currentRef={block.ref}
+            onPick={ref => pickArtifact(block, ref)}
+            onCancel={() => setPickerFor(null)}
+          />
+        )}
+        {failed}
+      </ArtifactBlock>
+    )
+  }
+
+  // The flow opened by "Insert here" under a block.
+  function renderInsertFlow(afterBlock) {
+    const key = insertKey(afterBlock.id)
+    const working = activeBlock === key && blockAction.loading
+    const { option, mode } = insertFlow
+    const cancel = () => setInsertFlow(null)
+    let ui = null
+
+    if (option.kind === 'tabs' && mode.id === 'write') {
+      ui = (
+        <TabsEditor
+          initial={{ title: '', tabs: [] }}
+          busy={working}
+          saveLabel="Insert tabs"
+          onSave={payload => submitInsert(afterBlock.id, { kind: 'tabs', mode: 'write', ...payload })}
+          onCancel={cancel}
+        />
+      )
+    } else if (option.kind === 'tabs') {
+      ui = (
+        <ContextPanel
+          type="tabs"
+          limits={limits}
+          lessonExperience={lesson.context?.experience}
+          busy={working}
+          onSubmit={ctx => submitInsert(afterBlock.id, { kind: 'tabs', mode: 'generate', context: ctx })}
+          onCancel={cancel}
+        />
+      )
+    } else if (mode.id === 'existing') {
+      ui = (
+        <ArtifactPicker
+          projectSlug={projectSlug}
+          type={option.artifact_type}
+          onPick={ref => submitInsert(afterBlock.id, {
+            kind: 'artifact', artifact_type: option.artifact_type, mode: 'existing',
+            source: ref.source, artifact: ref.folder,
+          })}
+          onCancel={cancel}
+        />
+      )
+    } else {
+      ui = (
+        <ContextPanel
+          type={option.artifact_type}
+          limits={limits}
+          lessonExperience={lesson.context?.experience}
+          busy={working}
+          onSubmit={ctx => submitInsert(afterBlock.id, {
+            kind: 'artifact', artifact_type: option.artifact_type, mode: 'new', context: ctx,
+          })}
+          onCancel={cancel}
+        />
+      )
+    }
+
+    return (
+      <div className="insert-flow">
+        {ui}
+        {working && (
+          <LoadingState subtle message="Adding to your lesson..." hint="This may take up to 30 seconds." />
+        )}
+        {failedBlock === key && blockAction.error && (
+          <ErrorState
+            message={blockAction.error.userMessage}
+            onRetry={() => retryBlockRef.current && retryBlockRef.current()}
+            {...actionPropsFor(blockAction.error.errorType)}
+          />
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="lesson-page">
@@ -439,53 +645,21 @@ function LessonDetail() {
         <>
           <TimeMeter lesson={lesson} />
           <div className="lesson-blocks">
-            {lesson.blocks.map(block => {
-              if (block.kind !== 'artifact') return <TextBlock key={block.id} block={block} />
-              const artifact = block.ref
-                ? artifacts[`${block.ref.source}/${block.ref.artifact}`]
-                : null
-              return (
-                <ArtifactBlock
-                  key={block.id}
-                  block={block}
-                  artifact={artifact}
-                  busy={activeBlock === block.id && blockAction.loading}
-                  disabled={blockAction.loading}
-                  onGenerate={() => openContext(block)}
-                  onPickExisting={() => openPicker(block)}
-                  onRemove={() => removeBlock(block)}
-                >
-                  {contextFor === block.id && (
-                    <ContextPanel
-                      type={block.artifact_type}
-                      initial={block.generation_context}
-                      limits={limits}
-                      lessonExperience={lesson.context?.experience}
-                      busy={activeBlock === block.id && blockAction.loading}
-                      submitLabel={block.state === 'ready' ? 'Regenerate' : 'Generate'}
-                      onSubmit={ctx => generateArtifact(block, ctx)}
-                      onCancel={() => setContextFor(null)}
+            {lesson.blocks.map(block => (
+              <Fragment key={block.id}>
+                {renderBlock(block)}
+                {block.kind !== 'recall' && (
+                  <>
+                    <InsertControl
+                      options={INSERT_OPTIONS}
+                      disabled={blockAction.loading}
+                      onSelect={choice => startInsert(block, choice)}
                     />
-                  )}
-                  {pickerFor === block.id && (
-                    <ArtifactPicker
-                      projectSlug={projectSlug}
-                      type={block.artifact_type}
-                      currentRef={block.ref}
-                      onPick={ref => pickArtifact(block, ref)}
-                      onCancel={() => setPickerFor(null)}
-                    />
-                  )}
-                  {failedBlock === block.id && blockAction.error && (
-                    <ErrorState
-                      message={blockAction.error.userMessage}
-                      onRetry={() => retryBlockRef.current && retryBlockRef.current()}
-                      {...actionPropsFor(blockAction.error.errorType)}
-                    />
-                  )}
-                </ArtifactBlock>
-              )
-            })}
+                    {insertFlow && insertFlow.after === block.id && renderInsertFlow(block)}
+                  </>
+                )}
+              </Fragment>
+            ))}
           </div>
         </>
       )}

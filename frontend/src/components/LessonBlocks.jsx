@@ -16,7 +16,7 @@ import LoadingState from './LoadingState'
 // between refreshes. LessonDetail guarantees that (see lib/stabilize.js).
 
 // Body text is plain: paragraphs separated by blank lines.
-function Paragraphs({ text }) {
+export function Paragraphs({ text }) {
   return (text || '')
     .split(/\n{2,}/)
     .filter(p => p.trim())
@@ -80,7 +80,11 @@ export function TextBlock({ block }) {
 // Remove with a short confirmation. Removing takes the BLOCK out of the
 // lesson only; the artifact itself stays in the project and is still
 // offered by the picker.
-function RemoveControl({ onRemove, locked }) {
+export function RemoveControl({
+  onRemove,
+  locked,
+  message = 'Remove this from the lesson? The artifact stays in your project.',
+}) {
   const [confirming, setConfirming] = useState(false)
   if (!confirming) {
     return (
@@ -91,7 +95,7 @@ function RemoveControl({ onRemove, locked }) {
   }
   return (
     <span className="delete-confirm">
-      <span>Remove this from the lesson? The artifact stays in your project.</span>
+      <span>{message}</span>
       <button type="button" className="btn btn-danger btn-sm" onClick={onRemove} disabled={locked}>
         Yes, remove
       </button>
@@ -130,7 +134,7 @@ function ReplaceControl({ onPickExisting, onGenerate, locked }) {
 }
 
 // One line describing the context a block was generated with, or '' if none.
-function contextSummary(ctx) {
+export function contextSummary(ctx) {
   if (!ctx) return ''
   const parts = []
   if (ctx.focus) parts.push(`focus "${ctx.focus}"`)

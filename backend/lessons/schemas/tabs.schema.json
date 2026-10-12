@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LessonTabs",
+  "type": "object",
+  "required": ["tabs"],
+  "additionalProperties": true,
+  "properties": {
+    "title": { "type": "string" },
+    "tabs": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["label", "body"],
+        "additionalProperties": true,
+        "properties": {
+          "label": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "body": { "type": "string", "minLength": 1 },
+          "visual": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -12,7 +12,7 @@
 // Artifacts are NOT written here. The lesson only proposes placements;
 // each artifact is generated later, when the user accepts the proposal.
 
-const { DEFAULT_ARTIFACT_MINUTES } = require('./time')
+const { DEFAULT_ARTIFACT_MINUTES, DEFAULT_TABS_MINUTES } = require('./time')
 
 // Share of the lesson time budget given to text (hook, chunks, apply).
 // The rest is reserved for the artifacts inserted later.
@@ -155,10 +155,14 @@ no "best" alone. "answer" is the expected answer in 25 words or fewer. Set \
 "recall_day" from the section
 
 PLACEMENTS (artifacts to insert later)
-- Propose 1 to 3 artifacts that would help the learner practice. Do not \
-write them
+- Propose 1 to 4 placements. Do not write them. Most are artifacts that \
+help the learner practice
 - "artifact_type" is one of: flip-card-deck, knowledge-check, \
-scenario-branching. Use each type at most once
+scenario-branching, tabs. Use each type at most once
+- "tabs" is not an artifact. It is a block that lays out 2 to 5 parallel \
+ideas, one tab each. Propose it only where the sources compare or layer \
+ideas that belong side by side (for example roles, types, or levels). Its \
+"note" says what the tabs should compare
 - You MUST propose at least one knowledge-check or scenario-branching, so \
 the learner retrieves what they learned
 - "after_section" is the id of a hook, chunk, or apply section the \
@@ -169,8 +173,9 @@ been taught. A scenario suits the end of the chunks, before the apply block
 - Time: about ${remaining} minutes remain for artifacts. Inside a lesson a \
 flip card deck takes about ${d['flip-card-deck']} minutes (4 cards), a \
 knowledge check about ${d['knowledge-check']} (3 questions), and a scenario \
-about ${d['scenario-branching']} (2 decisions). Propose only what fits, but \
-always include the retrieval artifact required above
+about ${d['scenario-branching']} (2 decisions). A tabs block takes about \
+${DEFAULT_TABS_MINUTES}. Propose only what fits, but always include the retrieval \
+artifact required above
 
 Respond in this JSON schema:
 {
@@ -188,11 +193,85 @@ Respond in this JSON schema:
   "placements": [
     {
       "after_section": "s2",
-      "artifact_type": "flip-card-deck | knowledge-check | scenario-branching",
+      "artifact_type": "flip-card-deck | knowledge-check | scenario-branching | tabs",
       "note": "string"
     }
   ]
 }`
 }
 
-module.exports = { blueprintPrompt, textPrompt, textBudgetMinutes }
+// Write ONE tabs block: 2 to 5 parallel ideas, one per tab. It rides on the
+// same steering layers as everything else, including the BLOCK CONTEXT
+// section (where the block sits and, if the user typed one, the focus or
+// instruction such as "compare host, client, and server").
+function tabsPrompt(ctx, { topic, objective, count }) {
+  const { sourceContent, steeringBlock, learnerContextBlock } = ctx
+  const countRule = count
+    ? `Exactly ${count} tabs`
+    : '2 to 5 tabs, as many as the content needs'
+
+  return `Write a tabs block for a lesson from the sources below. This is \
+SECONDARY content creation: treat the sources as reference material to \
+faithfully distill, not as inspiration for invention.
+
+═══ LESSON TOPIC ═══
+${topic}
+
+═══ LESSON OBJECTIVE (locked) ═══
+${objective}
+
+${steeringBlock}
+
+${learnerContextBlock}
+
+═══ SOURCES (reference material) ═══
+${sourceContent}
+
+═══ REQUIREMENTS ═══
+
+PURPOSE
+- Tabs let the learner look at one idea at a time. Use them for parallel \
+ideas that belong side by side, such as roles, types, or levels
+- The BLOCK CONTEXT above says where this block sits. If it gives a Focus, \
+that is the instruction: build the tabs around it
+
+STRUCTURE
+- ${countRule}
+- "title": an optional short heading for the block, phrased as a question \
+where that reads naturally
+- Each tab has a "label" and a "body"
+- "label": one to three words, at most 24 characters. Keep labels parallel, \
+for example three roles or three levels
+- "body": plain text, at most 50 words, one idea. Give every body the same \
+internal order so the learner can compare across tabs
+- "visual" (optional, per tab): a diagram or an annotated screenshot that \
+carries meaning, described so it could be sketched or captured. Leave it out \
+when there is none. No decorative imagery
+- Every tab stands alone: the learner may open them in any order
+
+VOICE
+- Second person, active voice, short sentences
+- Use the sources' own terms and frameworks. Do not invent your own
+- Do not name people unless the PROJECT STYLE GUIDE explicitly asks for \
+named characters
+- No filler, no throat-clearing, no "Correct" or "Wrong"
+
+EXPERIENCE LEVEL
+- Novice: define each term in its tab
+- Practicing: assume core vocabulary, point to common mistakes
+- Expert: condensed, lead with exceptions
+
+Respond in this JSON schema:
+{
+  "title": "string (optional)",
+  "tabs": [
+    {
+      "label": "string",
+      "body": "string",
+      "visual": "string (optional)"
+    }
+  ]
+}`
+}
+
+module.exports = { blueprintPrompt, textPrompt, tabsPrompt, textBudgetMinutes }

@@ -19,6 +19,9 @@ import { useState } from 'react'
 //   lessonExperience  — the lesson's own level, shown as the default
 //   busy              — true while a generation is running
 //   submitLabel       — button text (default "Generate")
+//   overwriteWarning  — optional text. When set, submitting first asks the
+//                       user to confirm (used when regenerating would
+//                       replace hand edits)
 //   onSubmit(context) — called with the fields as typed
 //   onCancel()        — closes the panel without generating
 
@@ -27,6 +30,7 @@ const COUNT_LABEL = {
   'flip-card-deck': 'Number of cards',
   'knowledge-check': 'Number of questions',
   'scenario-branching': 'Number of decisions',
+  tabs: 'Number of tabs',
 }
 
 function ContextPanel({
@@ -36,6 +40,7 @@ function ContextPanel({
   lessonExperience,
   busy,
   submitLabel = 'Generate',
+  overwriteWarning,
   onSubmit,
   onCancel,
 }) {
@@ -44,6 +49,8 @@ function ContextPanel({
   const [count, setCount] = useState(initial?.count ? String(initial.count) : '')
   const [experience, setExperience] = useState(initial?.experience || '')
   const [notes, setNotes] = useState(initial?.notes || '')
+  const [confirming, setConfirming] = useState(false)
+  const isTabs = type === 'tabs'
 
   const size = limits?.[type]
   const counts = size
@@ -52,6 +59,10 @@ function ContextPanel({
 
   function handleSubmit(e) {
     e.preventDefault()
+    if (overwriteWarning && !confirming) {
+      setConfirming(true)
+      return
+    }
     onSubmit({
       focus,
       source_section: sourceSection,
@@ -71,10 +82,12 @@ function ContextPanel({
 
       <div className="form-group">
         <label>
-          Focus
+          {isTabs ? 'Instruction' : 'Focus'}
           <input
             type="text"
-            placeholder="What this should emphasize, e.g. host, client, and server roles"
+            placeholder={isTabs
+              ? 'What to compare or layer, e.g. compare host, client, and server'
+              : 'What this should emphasize, e.g. host, client, and server roles'}
             value={focus}
             onChange={e => setFocus(e.target.value)}
             disabled={busy}
@@ -100,7 +113,7 @@ function ContextPanel({
           <label>
             {COUNT_LABEL[type] || 'Count'}
             <select value={count} onChange={e => setCount(e.target.value)} disabled={busy}>
-              <option value="">Default ({size.default})</option>
+              <option value="">{size.default ? `Default (${size.default})` : 'Let Byte decide'}</option>
               {counts.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
@@ -132,12 +145,16 @@ function ContextPanel({
         </label>
       </div>
 
+      {confirming && (
+        <p className="status-message error" role="alert">{overwriteWarning}</p>
+      )}
+
       <div className="lesson-actions">
         <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
-          {busy ? 'Generating...' : submitLabel}
+          {busy ? 'Generating...' : confirming ? 'Yes, replace my edits' : submitLabel}
         </button>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={onCancel} disabled={busy}>
-          Cancel
+        <button type="button" className="btn btn-secondary btn-sm" onClick={confirming ? () => setConfirming(false) : onCancel} disabled={busy}>
+          {confirming ? 'Back' : 'Cancel'}
         </button>
       </div>
     </form>

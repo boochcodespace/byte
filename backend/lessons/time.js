@@ -9,6 +9,9 @@
 //   - every interaction (a card, a question, a decision) adds 30 seconds
 //   - recall prompts are done on day 2, 7 and 21, so they are shown but
 //     NOT counted in the lesson total
+//   - a tabs block counts every word in its title, tab labels and tab
+//     bodies at 200 words per minute, plus 15 seconds per tab for
+//     switching between them
 //
 // A proposed artifact has no content yet, so it uses a default estimate
 // based on the in-lesson sizes (4 cards, 3 items, 2 decisions). Once the
@@ -25,6 +28,11 @@ const DEFAULT_ARTIFACT_MINUTES = {
   'scenario-branching': 2.7,
 }
 const FALLBACK_ARTIFACT_MINUTES = 2.5
+
+// Tabs: 15 seconds per tab to switch. A proposed tabs block has no content
+// yet, so it uses a default for about three short tabs.
+const TAB_SWITCH_MINUTES = 0.25
+const DEFAULT_TABS_MINUTES = 1.4
 
 const words = (...parts) =>
   parts.filter(p => typeof p === 'string').join(' ').trim().split(/\s+/).filter(Boolean).length
@@ -84,7 +92,15 @@ function artifactMinutes(type, artifact) {
   return DEFAULT_ARTIFACT_MINUTES[type] ?? FALLBACK_ARTIFACT_MINUTES
 }
 
+function tabsMinutes(block) {
+  const tabs = arr(block.tabs)
+  if (block.state === 'proposed' || tabs.length === 0) return DEFAULT_TABS_MINUTES
+  const wordCount = words(block.title, ...tabs.flatMap(t => [t.label, t.body]))
+  return readMinutes(wordCount) + TAB_SWITCH_MINUTES * tabs.length
+}
+
 function blockMinutes(block, artifacts) {
+  if (block.kind === 'tabs') return round1(tabsMinutes(block))
   if (block.kind === 'artifact') {
     const artifact = block.ref
       ? artifacts[artifactKey(block.ref.source, block.ref.artifact)]
@@ -128,6 +144,8 @@ module.exports = {
   WORDS_PER_MINUTE,
   INTERACTION_MINUTES,
   DEFAULT_ARTIFACT_MINUTES,
+  DEFAULT_TABS_MINUTES,
+  TAB_SWITCH_MINUTES,
   artifactMinutes,
   blockMinutes,
   computeLesson,
