@@ -12,7 +12,7 @@ import './LoadingState.css'
 //              (defaults to false → larger card-style block for
 //              full-panel loading)
 //   hint     — optional secondary line shown below the message, used
-//              by the Generate flow to warn that Claude can take ~30s
+//              by the Generate flow to warn that the model can take ~30s
 //
 // Why no prop for "where to render it": placement is the parent's
 // job. This component is purely the visual primitive.

@@ -24,9 +24,9 @@ const {
   sendError,
   mapSdkError,
 } = require('../lib/error-types')
+const { resolveLlmConfig } = require('../lib/llm/config')
 
 const PROJECTS_DIR = path.join(os.homedir(), 'Byte', 'projects')
-const SETTINGS_FILE = path.join(os.homedir(), 'Byte', 'settings.json')
 
 // POST .../artifacts/generate
 router.post('/generate', async (req, res) => {
@@ -49,13 +49,11 @@ router.post('/generate', async (req, res) => {
     })
   }
 
-  if (!fs.existsSync(SETTINGS_FILE)) {
-    return sendError(res, ERROR_TYPES.MISSING_API_KEY)
-  }
-  const { apiKey } = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'))
-  if (!apiKey) {
-    return sendError(res, ERROR_TYPES.MISSING_API_KEY)
-  }
+  // Which provider/model/key to use comes from Settings. A missing key
+  // or model is a recoverable setup problem, not a server fault.
+  const { config: llmConfig, problem } = resolveLlmConfig()
+  if (problem === 'api_key') return sendError(res, ERROR_TYPES.MISSING_API_KEY)
+  if (problem === 'model') return sendError(res, ERROR_TYPES.INVALID_MODEL)
 
   const sourceDir = path.join(PROJECTS_DIR, projectSlug, 'sources', sourceSlug)
   if (!fs.existsSync(sourceDir)) {
@@ -90,7 +88,7 @@ router.post('/generate', async (req, res) => {
       promptContext,
       extras,
       sourceDir,
-      apiKey,
+      llmConfig,
     })
     return sendOk(res, result)
   } catch (err) {

@@ -22,6 +22,7 @@
 const ERROR_TYPES = Object.freeze({
   MISSING_API_KEY:    'missing_api_key',
   INVALID_API_KEY:    'invalid_api_key',
+  INVALID_MODEL:      'invalid_model',
   NETWORK:            'network',
   RATE_LIMIT:         'rate_limit',
   SERVER_ERROR:       'server_error',
@@ -36,11 +37,12 @@ const ERROR_TYPES = Object.freeze({
 // Default user-facing copy per errorType. Routes may override with a
 // more specific message (e.g. a validation error naming the bad field).
 const DEFAULT_USER_MESSAGES = {
-  [ERROR_TYPES.MISSING_API_KEY]:   'Your Anthropic API key is missing. Please check your settings.',
-  [ERROR_TYPES.INVALID_API_KEY]:   'Your Anthropic API key is invalid. Please check your settings.',
-  [ERROR_TYPES.NETWORK]:           'Could not reach Claude. Check your internet connection and try again.',
+  [ERROR_TYPES.MISSING_API_KEY]:   'Your AI provider API key is missing. Please check your settings.',
+  [ERROR_TYPES.INVALID_API_KEY]:   'Your AI provider API key is invalid. Please check your settings.',
+  [ERROR_TYPES.INVALID_MODEL]:     'Your AI provider did not recognize the selected model, or no model is chosen. Please check your settings.',
+  [ERROR_TYPES.NETWORK]:           'Could not reach your AI provider. Check your internet connection (or that your local model server is running) and try again.',
   [ERROR_TYPES.RATE_LIMIT]:        'Rate limit reached. Please wait a moment and try again.',
-  [ERROR_TYPES.SERVER_ERROR]:      "Claude's service hit an error. This is usually temporary. Please try again.",
+  [ERROR_TYPES.SERVER_ERROR]:      "Your AI provider's service hit an error. This is usually temporary. Please try again.",
   [ERROR_TYPES.MALFORMED_JSON]:    'Generation failed to produce valid output. Please try again.',
   [ERROR_TYPES.SCHEMA_VALIDATION]: 'Generation failed to produce valid output. Please try again.',
   [ERROR_TYPES.FILESYSTEM]:        'Could not save your work. Please check your Byte data folder permissions.',
@@ -53,6 +55,7 @@ const DEFAULT_USER_MESSAGES = {
 const DEFAULT_STATUS = {
   [ERROR_TYPES.MISSING_API_KEY]:   400,
   [ERROR_TYPES.INVALID_API_KEY]:   401,
+  [ERROR_TYPES.INVALID_MODEL]:     400,
   [ERROR_TYPES.NETWORK]:           502,
   [ERROR_TYPES.RATE_LIMIT]:        429,
   [ERROR_TYPES.SERVER_ERROR]:      502,
@@ -89,13 +92,14 @@ function sendError(res, errorType, {
 
 // ── SDK error classification ─────────────────────────────────────────
 //
-// Translate an Anthropic SDK / Node error into our vocabulary. This is
-// the one place where SDK-specific knowledge lives; the rest of the
+// Translate a provider or Node error into our vocabulary. This is the
+// one place where provider-specific knowledge lives; the rest of the
 // backend only sees errorType + userMessage.
 //
-// The SDK throws typed errors (APIConnectionError, AuthenticationError,
-// RateLimitError, APIError with .status). We also catch raw Node errors
-// that can surface during transport (ENOTFOUND, ECONNREFUSED).
+// Classification keys off the HTTP status every provider shares, so it
+// covers the Anthropic SDK (typed errors with .status), the
+// OpenAI-compatible adapter (ProviderHttpError with .status), and raw
+// Node transport errors (ENOTFOUND, ECONNREFUSED, request timeout).
 
 function mapSdkError(err) {
   if (!err) {
@@ -112,12 +116,18 @@ function mapSdkError(err) {
     return { errorType: ERROR_TYPES.INVALID_API_KEY, debug: { status: 403, message: err.message } }
   }
 
+  // 404 from a model provider means the model name is not recognized.
+  // This is the most common setup mistake with a custom provider.
+  if (err.status === 404 || err.name === 'NotFoundError') {
+    return { errorType: ERROR_TYPES.INVALID_MODEL, debug: { status: 404, message: err.message } }
+  }
+
   // Rate limit (429)
   if (err.status === 429 || err.name === 'RateLimitError') {
     return { errorType: ERROR_TYPES.RATE_LIMIT, debug: { status: 429, message: err.message } }
   }
 
-  // 5xx from Anthropic
+  // 5xx from the provider
   if (typeof err.status === 'number' && err.status >= 500 && err.status < 600) {
     return { errorType: ERROR_TYPES.SERVER_ERROR, debug: { status: err.status, message: err.message } }
   }
@@ -128,6 +138,7 @@ function mapSdkError(err) {
   if (
     err.name === 'APIConnectionError' ||
     err.name === 'APIConnectionTimeoutError' ||
+    err.name === 'TimeoutError' ||
     transportCodes.includes(err.code) ||
     transportCodes.includes(err.cause?.code)
   ) {

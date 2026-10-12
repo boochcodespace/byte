@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { getRenderer, DEFAULT_TYPE } from '../artifact-renderers/registry'
+import {
+  getRenderer,
+  getTypeMeta,
+  ARTIFACT_TYPE_OPTIONS,
+  DEFAULT_TYPE,
+} from '../artifact-renderers/registry'
 import { api } from '../lib/apiFetch'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { actionPropsFor } from '../lib/errorActions'
@@ -182,18 +187,21 @@ function SourceDetail() {
             <div className="artifacts-section card">
               <h2 style={{ marginBottom: '12px' }}>Generated artifacts</h2>
               <div className="artifacts-list">
-                {source.artifacts.map((artifact, i) => (
-                  <div
-                    key={artifact.folder || i}
-                    className={`artifact-item ${selectedArtifact === artifact ? 'active' : ''}`}
-                    onClick={() => setSelectedArtifact(artifact)}
-                  >
-                    <div className="artifact-item-icon">🃏</div>
-                    <div>
-                      <div className="artifact-item-type">Flip Card Deck</div>
+                {source.artifacts.map((artifact, i) => {
+                  const meta = getTypeMeta(artifact.type || DEFAULT_TYPE)
+                  return (
+                    <div
+                      key={artifact.folder || i}
+                      className={`artifact-item ${selectedArtifact === artifact ? 'active' : ''}`}
+                      onClick={() => setSelectedArtifact(artifact)}
+                    >
+                      <div className="artifact-item-icon">{meta.icon}</div>
+                      <div>
+                        <div className="artifact-item-type">{meta.label}</div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
@@ -280,7 +288,9 @@ function SourceDetail() {
                 onChange={e => setArtifactType(e.target.value)}
                 disabled={generateAction.loading}
               >
-                <option value="flip-card-deck">Flip Card Deck</option>
+                {ARTIFACT_TYPE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
             </div>
 
@@ -331,7 +341,7 @@ function SourceDetail() {
             {generateAction.loading && (
               <LoadingState
                 subtle
-                message="Calling Claude..."
+                message="Calling your AI model..."
                 hint="This may take up to 30 seconds."
               />
             )}
