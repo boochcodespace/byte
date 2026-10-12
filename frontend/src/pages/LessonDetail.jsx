@@ -248,6 +248,7 @@ function LessonDetail() {
     pendingMove.current = { id: block.id, dir }
     runBlock(block.id, () => api.post(`${base}/blocks/${block.id}/move`, { direction: dir }))
   }
+  const draftAlt = brief => api.post(`${base}/alt-text/draft`, { visual: brief })
   const generateText = (block, context) =>
     runBlock(block.id, () =>
       api.post(`${base}/blocks/${block.id}/text/generate`, { context, ...(block.edited ? { overwrite: true } : {}) }))
@@ -329,6 +330,7 @@ function LessonDetail() {
           onSave={payload => saveTabs(block, payload)}
           onCancelEdit={() => setEditFor(null)}
           onGenerate={() => openContext(block)}
+          onDraftAlt={draftAlt}
           onRemove={() => removeBlock(block)}
           removeMessage={removeMessageFor(block, block.state === 'proposed'
             ? 'Remove this suggestion from the lesson?'
@@ -367,6 +369,7 @@ function LessonDetail() {
           onSave={payload => saveText(block, payload)}
           onCancelEdit={() => setEditFor(null)}
           onGenerate={() => openContext(block)}
+          onDraftAlt={draftAlt}
           onRemove={() => removeBlock(block)}
           removeMessage={removeMessageFor(block, block.edited
             ? 'Remove this block? Your edits will be lost.'
@@ -467,6 +470,7 @@ function LessonDetail() {
               block={blank}
               busy={working}
               saveLabel="Insert"
+              onDraftAlt={draftAlt}
               onSave={payload => submitInsert(afterBlock.id, { kind: option.kind, mode: 'write', ...extra, ...payload })}
               onCancel={cancel}
             />
@@ -491,6 +495,7 @@ function LessonDetail() {
           initial={{ title: '', tabs: [] }}
           busy={working}
           saveLabel="Insert tabs"
+          onDraftAlt={draftAlt}
           onSave={payload => submitInsert(afterBlock.id, { kind: 'tabs', mode: 'write', ...payload })}
           onCancel={cancel}
         />

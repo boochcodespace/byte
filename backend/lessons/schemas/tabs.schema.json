@@ -2,23 +2,96 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "LessonTabs",
   "type": "object",
-  "required": ["tabs"],
+  "required": [
+    "tabs"
+  ],
   "additionalProperties": true,
   "properties": {
-    "title": { "type": "string" },
+    "title": {
+      "type": "string"
+    },
     "tabs": {
       "type": "array",
       "minItems": 2,
       "maxItems": 5,
       "items": {
         "type": "object",
-        "required": ["label", "body"],
+        "required": [
+          "label",
+          "body"
+        ],
         "additionalProperties": true,
         "properties": {
-          "label": { "type": "string", "minLength": 1, "maxLength": 40 },
-          "body": { "type": "string", "minLength": 1 },
-          "visual": { "type": "string" }
-        }
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1
+          },
+          "visual": {
+            "type": "string"
+          },
+          "alt_text": {
+            "type": "string"
+          },
+          "long_description": {
+            "type": "string"
+          },
+          "decorative": {
+            "type": "boolean"
+          },
+          "decorative_reason": {
+            "type": "string"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "visual"
+              ],
+              "properties": {
+                "visual": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "then": {
+              "anyOf": [
+                {
+                  "required": [
+                    "alt_text"
+                  ],
+                  "properties": {
+                    "alt_text": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "decorative",
+                    "decorative_reason"
+                  ],
+                  "properties": {
+                    "decorative": {
+                      "const": true
+                    },
+                    "decorative_reason": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
       }
     }
   }

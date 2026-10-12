@@ -2,7 +2,10 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "LessonText",
   "type": "object",
-  "required": ["blocks", "placements"],
+  "required": [
+    "blocks",
+    "placements"
+  ],
   "additionalProperties": true,
   "properties": {
     "blocks": {
@@ -10,25 +13,157 @@
       "minItems": 3,
       "items": {
         "type": "object",
-        "required": ["section_id", "kind", "body"],
+        "required": [
+          "section_id",
+          "kind",
+          "body"
+        ],
         "additionalProperties": true,
         "properties": {
-          "section_id": { "type": "string", "minLength": 1 },
-          "kind": { "type": "string", "enum": ["hook", "chunk", "apply", "recall"] },
-          "body": { "type": "string", "minLength": 1 },
-          "visual": { "type": "string" },
-          "source_refs": { "type": "array", "items": { "type": "string" } },
-          "recall_day": { "type": "integer" },
-          "answer": { "type": "string" }
+          "section_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "hook",
+              "chunk",
+              "apply",
+              "recall"
+            ]
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1
+          },
+          "visual": {
+            "type": "string"
+          },
+          "source_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recall_day": {
+            "type": "integer"
+          },
+          "answer": {
+            "type": "string"
+          },
+          "alt_text": {
+            "type": "string"
+          },
+          "long_description": {
+            "type": "string"
+          },
+          "decorative": {
+            "type": "boolean"
+          },
+          "decorative_reason": {
+            "type": "string"
+          }
         },
         "allOf": [
           {
-            "if": { "properties": { "kind": { "const": "chunk" } }, "required": ["kind"] },
-            "then": { "required": ["visual"], "properties": { "visual": { "minLength": 1 } } }
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "chunk"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "required": [
+                "visual"
+              ],
+              "properties": {
+                "visual": {
+                  "minLength": 1
+                }
+              }
+            }
           },
           {
-            "if": { "properties": { "kind": { "const": "recall" } }, "required": ["kind"] },
-            "then": { "required": ["answer"], "properties": { "answer": { "minLength": 1 } } }
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "recall"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "required": [
+                "answer"
+              ],
+              "properties": {
+                "answer": {
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "chunk"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "if": {
+                "required": [
+                  "visual"
+                ],
+                "properties": {
+                  "visual": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "then": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "alt_text"
+                    ],
+                    "properties": {
+                      "alt_text": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  {
+                    "required": [
+                      "decorative",
+                      "decorative_reason"
+                    ],
+                    "properties": {
+                      "decorative": {
+                        "const": true
+                      },
+                      "decorative_reason": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       }
@@ -39,21 +174,45 @@
       "maxItems": 4,
       "items": {
         "type": "object",
-        "required": ["after_section", "artifact_type", "note"],
+        "required": [
+          "after_section",
+          "artifact_type",
+          "note"
+        ],
         "additionalProperties": true,
         "properties": {
-          "after_section": { "type": "string", "minLength": 1 },
+          "after_section": {
+            "type": "string",
+            "minLength": 1
+          },
           "artifact_type": {
             "type": "string",
-            "enum": ["flip-card-deck", "knowledge-check", "scenario-branching", "tabs"]
+            "enum": [
+              "flip-card-deck",
+              "knowledge-check",
+              "scenario-branching",
+              "tabs"
+            ]
           },
-          "note": { "type": "string", "minLength": 1 }
+          "note": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       },
       "contains": {
         "type": "object",
-        "required": ["artifact_type"],
-        "properties": { "artifact_type": { "enum": ["knowledge-check", "scenario-branching"] } }
+        "required": [
+          "artifact_type"
+        ],
+        "properties": {
+          "artifact_type": {
+            "enum": [
+              "knowledge-check",
+              "scenario-branching"
+            ]
+          }
+        }
       }
     }
   }

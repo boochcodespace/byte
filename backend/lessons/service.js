@@ -25,12 +25,13 @@ const { getTypeModule } = require('../artifact-types/registry')
 const store = require('./store')
 const { loadSources, assertWithinCap } = require('./sources')
 const { computeLesson } = require('./time')
-const { blueprintPrompt, textPrompt, tabsPrompt, textBlockPrompt } = require('./prompts')
+const { blueprintPrompt, textPrompt, tabsPrompt, textBlockPrompt, altTextPrompt } = require('./prompts')
 const { validation, notFound } = require('./errors')
 const blueprintSchema = require('./schemas/blueprint.schema.json')
 const textSchema = require('./schemas/text.schema.json')
 const tabsSchema = require('./schemas/tabs.schema.json')
 const textBlockSchema = require('./schemas/text-block.schema.json')
+const altTextSchema = require('./schemas/alt-text.schema.json')
 
 const DEFAULT_BUDGET = 10
 const MIN_BUDGET = 5
@@ -384,7 +385,10 @@ function buildBlocks(lesson, parsed) {
       source_refs: refs(m.source_refs),
       edited: false,
     }
-    if (section.kind === 'chunk') block.visual = str(m.visual)
+    if (section.kind === 'chunk') {
+      block.visual = str(m.visual)
+      Object.assign(block, cleanAltFields(m, { strict: false }))
+    }
     if (section.kind === 'recall') {
       block.recall_day = section.recall_day
       block.answer = str(m.answer)
@@ -625,7 +629,10 @@ function sanitizeTabs(rawTabs, rawTitle, { strict }) {
     }
     let id = t && typeof t.id === 'string' && reserved.has(t.id) && !assigned.has(t.id) ? t.id : freshId()
     assigned.add(id)
-    return visual ? { id, label, body, visual } : { id, label, body }
+    // Alt fields only make sense with a visual.
+    return visual
+      ? { id, label, body, visual, ...cleanAltFields(t, { strict }) }
+      : { id, label, body }
   })
   return { title: str(rawTitle).slice(0, TAB_LIMITS.title), tabs }
 }
@@ -634,7 +641,7 @@ function sanitizeTabs(rawTabs, rawTitle, { strict }) {
 // block as edited.
 const tabsSnapshot = block => JSON.stringify({
   title: block.title || '',
-  tabs: (block.tabs || []).map(t => ({ id: t.id, label: t.label, body: t.body, visual: t.visual || '' })),
+  tabs: (block.tabs || []).map(t => ({ id: t.id, label: t.label, body: t.body, visual: t.visual || '', alt_text: t.alt_text || '', long_description: t.long_description || '', decorative: t.decorative === true, decorative_reason: t.decorative_reason || '' })),
 })
 
 async function writeTabsWithModel(projectSlug, project, lesson, block, body, llmConfig) {
@@ -721,6 +728,58 @@ function editTabs(projectSlug, lessonId, blockId, body) {
 // the cap is only a safety net far above normal use.
 const TEXT_LIMITS = { title: 120, body: 4000, visual: 10000, answer: 1500 }
 
+// The text alternative that goes with a visual note. The 125-character
+// figure for alt_text is a soft guide the editor warns about; the caps
+// here are only safety nets far above normal use, so saving never fails
+// for length in ordinary work.
+const ALT_LIMITS = { alt_text: 2000, long_description: 8000, decorative_reason: 500 }
+const VISUAL_ALT_FIELDS = ['alt_text', 'long_description', 'decorative', 'decorative_reason']
+
+// Normalize the alternative-text fields of a visual. Empty values are
+// dropped. A decorative visual keeps only its reason (it has nothing to
+// describe); a described one is never decorative. Over-long values are
+// refused when `strict` (user input) and trimmed otherwise (model output).
+function cleanAltFields(raw, { strict }) {
+  const out = {}
+  const take = (field, label) => {
+    let v = str(raw?.[field])
+    if (v.length > ALT_LIMITS[field]) {
+      if (strict) throw validation(`${label} can be up to ${ALT_LIMITS[field].toLocaleString('en-US')} characters.`)
+      v = v.slice(0, ALT_LIMITS[field])
+    }
+    return v
+  }
+  if (raw?.decorative === true) {
+    out.decorative = true
+    const reason = take('decorative_reason', 'The reason')
+    if (reason) out.decorative_reason = reason
+    return out
+  }
+  const alt = take('alt_text', 'The alt text')
+  if (alt) out.alt_text = alt
+  const long = take('long_description', 'The long description')
+  if (long) out.long_description = long
+  return out
+}
+
+// Replace a block or tab's alt fields with `fields` (no leftovers).
+function setAltFields(target, fields) {
+  for (const k of VISUAL_ALT_FIELDS) delete target[k]
+  Object.assign(target, fields)
+}
+
+const altOf = obj => Object.fromEntries(VISUAL_ALT_FIELDS.filter(k => obj[k] !== undefined).map(k => [k, obj[k]]))
+
+// Write cleaned text fields onto a block. For a chunk the alt fields are
+// replaced as a set, so an old "decorative" never survives a new alt text.
+function applyTextFields(block, next) {
+  const alt = altOf(next)
+  const rest = { ...next }
+  for (const k of VISUAL_ALT_FIELDS) delete rest[k]
+  Object.assign(block, rest)
+  if (block.kind === 'chunk') setAltFields(block, alt)
+}
+
 // Validate the user-editable fields of a text block of this kind. Body for
 // all; title and visual for chunks; answer for recall. Anything else in the
 // request is ignored.
@@ -736,6 +795,8 @@ function cleanTextFields(kind, body) {
   if (kind === 'chunk') {
     text('title', 'The title', { required: true, max: TEXT_LIMITS.title })
     text('visual', 'The visual note', { required: false, max: TEXT_LIMITS.visual })
+    // Alt fields: no visual, no alternative. Stored empty values are dropped.
+    if (next.visual) Object.assign(next, cleanAltFields(body, { strict: true }))
   }
   if (kind === 'recall') text('answer', 'The answer', { required: true, max: TEXT_LIMITS.answer })
   return next
@@ -750,9 +811,10 @@ function editTextBlock(projectSlug, lessonId, blockId, body) {
   if (!block || !TEXT_KINDS.has(block.kind)) throw notFound('That text block was not found.')
 
   const next = cleanTextFields(block.kind, body)
-  const changed = Object.keys(next).some(k => (block[k] ?? '') !== next[k])
-  Object.assign(block, next)
-  if (changed) block.edited = true
+  const textChanged = Object.keys(next).some(k => !VISUAL_ALT_FIELDS.includes(k) && (block[k] ?? '') !== next[k])
+  const altChanged = block.kind === 'chunk' && JSON.stringify(altOf(next)) !== JSON.stringify(altOf(block))
+  applyTextFields(block, next)
+  if (textChanged || altChanged) block.edited = true
 
   store.writeLesson(projectSlug, lesson)
   return presentLesson(projectSlug, lesson)
@@ -812,6 +874,7 @@ async function writeTextWithModel(projectSlug, project, lesson, block, body, llm
   if (block.kind === 'chunk') {
     next.visual = str(parsed.visual)
     if (!next.visual) throw new SchemaValidationError('lesson-text-block', [{ message: 'The model wrote no visual note for a chunk.' }])
+    Object.assign(next, cleanAltFields(parsed, { strict: false }))
     const title = str(parsed.title).slice(0, TEXT_LIMITS.title)
     if (title) next.title = title
     else if (isNew) throw new SchemaValidationError('lesson-text-block', [{ message: 'The model wrote no title for a chunk.' }])
@@ -840,11 +903,33 @@ async function generateTextBlock(projectSlug, lessonId, blockId, body, llmConfig
   }
 
   const { next, given } = await writeTextWithModel(projectSlug, project, lesson, block, body || {}, llmConfig, { isNew: false })
-  Object.assign(block, next)
+  applyTextFields(block, next)
   block.edited = false
   storeContext(block, given)
   store.writeLesson(projectSlug, lesson)
   return presentLesson(projectSlug, lesson)
+}
+
+// ── alt text draft ───────────────────────────────────────────────────
+
+// Draft a text alternative from a visual brief. Nothing is saved: the
+// author reviews the draft in the editor and it only counts once they
+// save it. Works for a chunk or a tab, so it takes the brief, not a block.
+async function draftAltText(projectSlug, lessonId, body, llmConfig) {
+  requireProject(projectSlug)
+  const lesson = requireLesson(projectSlug, lessonId)
+  const visual = str(body?.visual)
+  if (!visual) throw validation('Write the visual note first. The alt text is drafted from it.')
+  if (visual.length > TEXT_LIMITS.visual) throw validation(`The visual note can be up to ${TEXT_LIMITS.visual.toLocaleString('en-US')} characters.`)
+
+  const parsed = await generateValidated({
+    key: 'lesson-alt-text',
+    schema: altTextSchema,
+    userPrompt: altTextPrompt({ topic: lesson.topic, objective: lesson.objective, visual }),
+    llmConfig,
+    maxTokens: 900,
+  })
+  return { draft: cleanAltFields({ alt_text: parsed.alt_text, long_description: parsed.long_description }, { strict: false }) }
 }
 
 // ── move ─────────────────────────────────────────────────────────────
@@ -977,11 +1062,11 @@ async function insertBlock(projectSlug, lessonId, body, llmConfig) {
     lesson.blocks.splice(at, 0, block)
 
     if (mode === 'write') {
-      Object.assign(block, cleanTextFields(body.kind, body))
+      applyTextFields(block, cleanTextFields(body.kind, body))
       block.edited = true
     } else if (mode === 'generate') {
       const { next, given } = await writeTextWithModel(projectSlug, project, lesson, block, body, llmConfig, { isNew: true })
-      Object.assign(block, next)
+      applyTextFields(block, next)
       storeContext(block, given)
     } else {
       throw validation('Choose to write the block yourself or have Byte generate it.')
@@ -1028,6 +1113,7 @@ module.exports = {
   editTextBlock,
   generateTextBlock,
   moveBlock,
+  draftAltText,
   insertBlock,
   removeBlock,
 }

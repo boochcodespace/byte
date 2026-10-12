@@ -1,4 +1,6 @@
-import { useState, useRef, useLayoutEffect } from 'react'
+import { useState } from 'react'
+import GrowTextarea from './GrowTextarea'
+import { VisualEditor, VisualDisplay } from './VisualFields'
 import { getRenderer, getTypeMeta } from '../artifact-renderers/registry'
 import LoadingState from './LoadingState'
 
@@ -16,6 +18,8 @@ import LoadingState from './LoadingState'
 // between refreshes. LessonDetail guarantees that (see lib/stabilize.js).
 
 // Body text is plain: paragraphs separated by blank lines.
+export { GrowTextarea }
+
 export function Paragraphs({ text }) {
   return (text || '')
     .split(/\n{2,}/)
@@ -23,36 +27,20 @@ export function Paragraphs({ text }) {
     .map((p, i) => <p key={i}>{p.trim()}</p>)
 }
 
-// A text area that grows with its content (for long visual notes).
-export function GrowTextarea({ value, onChange, disabled, rows = 2, ...rest }) {
-  const ref = useRef(null)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
-  }, [value])
-  return (
-    <textarea
-      ref={ref}
-      rows={rows}
-      className="grow-textarea"
-      value={value}
-      onChange={onChange}
-      disabled={disabled}
-      {...rest}
-    />
-  )
-}
-
 const KIND_LABEL = { hook: 'Start here', chunk: null, apply: 'Apply today' }
 
 // Inline editor for one text block. Fields shown depend on the kind:
 // body for all, title and visual note for chunks, answer for recall.
-export function TextEditor({ block, onSave, onCancel, busy, saveLabel = 'Save' }) {
+export function TextEditor({ block, onSave, onCancel, busy, saveLabel = 'Save', onDraftAlt }) {
   const [title, setTitle] = useState(block.title || '')
   const [body, setBody] = useState(block.body || '')
-  const [visual, setVisual] = useState(block.visual || '')
+  const [vis, setVis] = useState({
+    visual: block.visual || '',
+    alt_text: block.alt_text || '',
+    long_description: block.long_description || '',
+    decorative: block.decorative === true,
+    decorative_reason: block.decorative_reason || '',
+  })
   const [answer, setAnswer] = useState(block.answer || '')
   const isRecall = block.kind === 'recall'
 
@@ -60,7 +48,7 @@ export function TextEditor({ block, onSave, onCancel, busy, saveLabel = 'Save' }
     e.preventDefault()
     onSave({
       body,
-      ...(block.kind === 'chunk' ? { title, visual } : {}),
+      ...(block.kind === 'chunk' ? { title, ...vis } : {}),
       ...(isRecall ? { answer } : {}),
     })
   }
@@ -82,12 +70,7 @@ export function TextEditor({ block, onSave, onCancel, busy, saveLabel = 'Save' }
         </label>
       </div>
       {block.kind === 'chunk' && (
-        <div className="form-group">
-          <label>
-            Visual note <span className="label-optional">(optional)</span>
-            <GrowTextarea value={visual} onChange={e => setVisual(e.target.value)} disabled={busy} />
-          </label>
-        </div>
+        <VisualEditor value={vis} onChange={p => setVis(v => ({ ...v, ...p }))} busy={busy} onDraft={onDraftAlt} />
       )}
       {isRecall && (
         <div className="form-group">
@@ -115,7 +98,7 @@ export function TextEditor({ block, onSave, onCancel, busy, saveLabel = 'Save' }
 //   onRemove, removeMessage   confirm text for Remove
 //   canRemove               false for the last hook (shown as a note)
 //   children                errors or panels under the block
-export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCancelEdit, onGenerate, onRemove, removeMessage, canRemove = true, children }) {
+export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCancelEdit, onGenerate, onRemove, removeMessage, canRemove = true, onDraftAlt, children }) {
   const [showAnswer, setShowAnswer] = useState(false)
   const locked = busy || disabled
   const badge = block.edited && <span className="lesson-badge">Edited by you</span>
@@ -147,7 +130,7 @@ export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
     <p className="lesson-proposal-note">Generated with: {contextSummary(block.generation_context)}</p>
   )
   const editor = editing && (
-    <TextEditor block={block} onSave={onSave} onCancel={onCancelEdit} busy={busy} />
+    <TextEditor block={block} onSave={onSave} onCancel={onCancelEdit} busy={busy} onDraftAlt={onDraftAlt} />
   )
 
   if (block.kind === 'recall') {
@@ -201,12 +184,7 @@ export function TextBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
           <div className="lesson-body">
             <Paragraphs text={block.body} />
           </div>
-          {block.kind === 'chunk' && block.visual && (
-            <div className="lesson-visual">
-              <div className="lesson-label">Visual</div>
-              <p>{block.visual}</p>
-            </div>
-          )}
+          {block.kind === 'chunk' && <VisualDisplay item={block} />}
         </>
       )}
       {generatedWith}

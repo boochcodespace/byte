@@ -115,6 +115,10 @@ Respond in this JSON schema:
   "visual_anchor_description": "string (describe one diagram or \
 annotated screenshot that carries meaning for this deck; no decorative \
 imagery)",
+  "alt_text": "string (the text alternative for that visual: one sentence, \
+125 characters or fewer, the meaning not the look)",
+  "long_description": "string (optional; only for a complex diagram or \
+comparison, in plain sentences in reading order)",
   "cards": [
     {
       "type": "hook | content | apply",

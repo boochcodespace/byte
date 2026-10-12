@@ -14,6 +14,7 @@
 //   POST   /:lessonId/blocks/:blockId/artifact accept a placement, or replace
 //   PUT    /:lessonId/blocks/:blockId/text     edit a text block inline
 //   POST   /:lessonId/blocks/:blockId/text/generate  rewrite a text block
+//   POST   /:lessonId/alt-text/draft          draft alt text from a visual brief (saves nothing)
 //   POST   /:lessonId/blocks/:blockId/move    swap with a neighbour (up|down)
 //   DELETE /:lessonId/blocks/:blockId          remove a block (an artifact
 //                                              itself stays; not the last hook)
@@ -205,6 +206,19 @@ router.post('/:lessonId/blocks/:blockId/text/generate', async (req, res) => {
     return sendOk(res, await service.generateTextBlock(projectSlug, lessonId, blockId, req.body || {}, llmConfig))
   } catch (err) {
     return fail(res, 'lessons:text-generate', err)
+  }
+})
+
+// Draft alt text from a visual brief. Saves nothing.
+router.post('/:lessonId/alt-text/draft', async (req, res) => {
+  try {
+    checkIds(req)
+    const llmConfig = requireLlm(res)
+    if (!llmConfig) return
+    const { projectSlug, lessonId } = req.params
+    return sendOk(res, await service.draftAltText(projectSlug, lessonId, req.body || {}, llmConfig))
+  } catch (err) {
+    return fail(res, 'lessons:alt-text', err)
   }
 })
 

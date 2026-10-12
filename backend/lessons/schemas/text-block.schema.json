@@ -19,6 +19,63 @@
     },
     "answer": {
       "type": "string"
+    },
+    "alt_text": {
+      "type": "string"
+    },
+    "long_description": {
+      "type": "string"
+    },
+    "decorative": {
+      "type": "boolean"
+    },
+    "decorative_reason": {
+      "type": "string"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "visual"
+        ],
+        "properties": {
+          "visual": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "then": {
+        "anyOf": [
+          {
+            "required": [
+              "alt_text"
+            ],
+            "properties": {
+              "alt_text": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          {
+            "required": [
+              "decorative",
+              "decorative_reason"
+            ],
+            "properties": {
+              "decorative": {
+                "const": true
+              },
+              "decorative_reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
 }

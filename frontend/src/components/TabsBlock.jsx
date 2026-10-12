@@ -1,5 +1,6 @@
 import { useState, useRef, useId } from 'react'
-import { Paragraphs, RemoveControl, GrowTextarea, contextSummary } from './LessonBlocks'
+import { Paragraphs, RemoveControl, contextSummary } from './LessonBlocks'
+import { VisualEditor, VisualDisplay } from './VisualFields'
 import LoadingState from './LoadingState'
 
 // A tabs block: 2 to 5 parallel ideas, one tab each, for layering or
@@ -75,26 +76,21 @@ function TabsView({ block }) {
           className="lesson-tabpanel"
         >
           <div className="lesson-body"><Paragraphs text={t.body} /></div>
-          {t.visual && (
-            <div className="lesson-visual">
-              <div className="lesson-label">Visual</div>
-              <p>{t.visual}</p>
-            </div>
-          )}
+          <VisualDisplay item={t} />
         </div>
       ))}
     </div>
   )
 }
 
-export function TabsEditor({ initial, onSave, onCancel, busy, saveLabel = 'Save' }) {
+export function TabsEditor({ initial, onSave, onCancel, busy, saveLabel = 'Save', onDraftAlt }) {
   const keyRef = useRef(0)
   const withKey = t => ({ ...t, _k: ++keyRef.current })
-  const blank = () => withKey({ label: '', body: '', visual: '' })
+  const blank = () => withKey({ label: '', body: '', visual: '', alt_text: '', long_description: '', decorative: false, decorative_reason: '' })
 
   const [title, setTitle] = useState(initial?.title || '')
   const [tabs, setTabs] = useState(() =>
-    (initial?.tabs?.length ? initial.tabs : [blank(), blank()]).map(t => withKey({ visual: '', ...t }))
+    (initial?.tabs?.length ? initial.tabs : [blank(), blank()]).map(t => withKey({ visual: '', alt_text: '', long_description: '', decorative: false, decorative_reason: '', ...t }))
   )
 
   const patch = (i, p) => setTabs(ts => ts.map((t, j) => (j === i ? { ...t, ...p } : t)))
@@ -110,7 +106,7 @@ export function TabsEditor({ initial, onSave, onCancel, busy, saveLabel = 'Save'
     e.preventDefault()
     onSave({
       title,
-      tabs: tabs.map(t => ({ id: t.id, label: t.label, body: t.body, visual: t.visual })),
+      tabs: tabs.map(t => ({ id: t.id, label: t.label, body: t.body, visual: t.visual, alt_text: t.alt_text, long_description: t.long_description, decorative: t.decorative, decorative_reason: t.decorative_reason })),
     })
   }
 
@@ -144,12 +140,7 @@ export function TabsEditor({ initial, onSave, onCancel, busy, saveLabel = 'Save'
               </p>
             )}
           </div>
-          <div className="form-group">
-            <label>
-              Tab {i + 1} visual note <span className="label-optional">(optional)</span>
-              <GrowTextarea value={t.visual} onChange={e => patch(i, { visual: e.target.value })} disabled={busy} />
-            </label>
-          </div>
+          <VisualEditor scope={`Tab ${i + 1}`} value={t} onChange={p => patch(i, p)} busy={busy} onDraft={onDraftAlt} />
           <div className="lesson-actions">
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => swap(i, i - 1)} disabled={busy || i === 0} aria-label={`Move tab ${i + 1} up`}>
               Move up
@@ -187,7 +178,7 @@ export function TabsEditor({ initial, onSave, onCancel, busy, saveLabel = 'Save'
 //   onGenerate                 open the context panel (parent renders it)
 //   onRemove
 //   children                   the context panel and/or an error, below the block
-export function TabsBlock({ block, busy, disabled, editing, onEdit, onSave, onCancelEdit, onGenerate, onRemove, removeMessage, children }) {
+export function TabsBlock({ block, busy, disabled, editing, onEdit, onSave, onCancelEdit, onGenerate, onRemove, removeMessage, onDraftAlt, children }) {
   const locked = busy || disabled
   const spinner = busy && (
     <LoadingState subtle message="Working on your tabs..." hint="This may take up to 30 seconds." />
@@ -202,7 +193,7 @@ export function TabsBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
         </div>
         <p className="lesson-proposal-note">{block.placement_note}</p>
         {editing ? (
-          <TabsEditor initial={{ title: '', tabs: [] }} onSave={onSave} onCancel={onCancelEdit} busy={busy} saveLabel="Save tabs" />
+          <TabsEditor initial={{ title: '', tabs: [] }} onSave={onSave} onCancel={onCancelEdit} busy={busy} saveLabel="Save tabs" onDraftAlt={onDraftAlt} />
         ) : (
           <div className="lesson-actions">
             <button type="button" className="btn btn-primary btn-sm" onClick={onGenerate} disabled={locked}>
@@ -230,7 +221,7 @@ export function TabsBlock({ block, busy, disabled, editing, onEdit, onSave, onCa
       {block.title && <h3 className="lesson-chunk-title">{block.title}</h3>}
 
       {editing ? (
-        <TabsEditor initial={block} onSave={onSave} onCancel={onCancelEdit} busy={busy} />
+        <TabsEditor initial={block} onSave={onSave} onCancel={onCancelEdit} busy={busy} onDraftAlt={onDraftAlt} />
       ) : (
         <>
           <TabsView block={block} />

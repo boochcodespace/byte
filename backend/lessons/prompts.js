@@ -145,7 +145,9 @@ BY KIND
 - chunk: teach the ONE idea in the blueprint section in short paragraphs. \
 Add a "visual": a diagram or an annotated screenshot that carries meaning. \
 Describe it so it could be sketched or captured, and name what each label \
-points to. No decorative imagery
+points to. No decorative imagery. Give every visual an "alt_text" (one sentence, 125 characters or fewer, the \
+meaning not the look, no "image of"). Add a "long_description" only when the \
+visual is a diagram, flow, or comparison with several parts or relationships
 - apply: one sentence with a named trigger and a specific action the \
 learner can take within 24 hours ("Next time X happens, do Y")
 - recall: "body" is a stand-alone question that tests ONE idea from a \
@@ -185,6 +187,8 @@ Respond in this JSON schema:
       "kind": "hook | chunk | apply | recall",
       "body": "string",
       "visual": "string (chunk blocks only)",
+      "alt_text": "string (chunk blocks only; 125 characters or fewer)",
+      "long_description": "string (chunk blocks only; optional, for complex visuals)",
       "source_refs": ["source id"],
       "recall_day": 2 | 7 | 21 (recall blocks only),
       "answer": "string (recall blocks only)"
@@ -246,7 +250,9 @@ for example three roles or three levels
 internal order so the learner can compare across tabs
 - "visual" (optional, per tab): a diagram or an annotated screenshot that \
 carries meaning, described so it could be sketched or captured. Leave it out \
-when there is none. No decorative imagery
+when there is none. No decorative imagery. If a tab has a visual, it needs \
+an "alt_text" (one sentence, 125 characters or fewer, the meaning not the \
+look) and, only for a complex diagram or comparison, a "long_description"
 - Every tab stands alone: the learner may open them in any order
 
 VOICE
@@ -268,7 +274,9 @@ Respond in this JSON schema:
     {
       "label": "string",
       "body": "string",
-      "visual": "string (optional)"
+      "visual": "string (optional)",
+      "alt_text": "string (required when there is a visual; 125 characters or fewer)",
+      "long_description": "string (optional, for a complex visual)"
     }
   ]
 }`
@@ -283,14 +291,16 @@ function textBlockPrompt(ctx, { topic, objective, block, isNew, purpose, wordTar
     hook: '- "body": 1 to 2 sentences. Name the job task and the payoff. Never open with "In this lesson" or a topic announcement',
     chunk: `- "title": the section title, phrased as a question where that reads naturally
 - "body": teach the ONE idea in short paragraphs, about ${wordTarget || 110} words or fewer. Plain text, paragraphs separated by a blank line
-- "visual": a diagram or an annotated screenshot that carries meaning. Describe it so it could be sketched or captured, and name what each label points to. No decorative imagery`,
+- "visual": a diagram or an annotated screenshot that carries meaning. Describe it so it could be sketched or captured, and name what each label points to. No decorative imagery. Give every visual an "alt_text" (one sentence, 125 characters or fewer, the \
+meaning not the look, no "image of"). Add a "long_description" only when the \
+visual is a diagram, flow, or comparison with several parts or relationships`,
     apply: '- "body": one sentence with a named trigger and a specific action the learner can take within 24 hours ("Next time X happens, do Y")',
     recall: `- "body": a stand-alone question that tests ONE idea from the lesson. A learner must be able to answer it from memory with the lesson out of sight. Use fresh wording. Positive phrasing, no "best" alone
 - "answer": the expected answer in 25 words or fewer`,
   }[block.kind]
   const shape = {
     hook: '{ "body": "string" }',
-    chunk: '{ "title": "string", "body": "string", "visual": "string" }',
+    chunk: '{ "title": "string", "body": "string", "visual": "string", "alt_text": "string (125 characters or fewer)", "long_description": "string (optional)" }',
     apply: '{ "body": "string" }',
     recall: '{ "body": "string", "answer": "string" }',
   }[block.kind]
@@ -342,4 +352,39 @@ Respond in this JSON schema:
 ${shape}`
 }
 
-module.exports = { blueprintPrompt, textPrompt, tabsPrompt, textBlockPrompt, textBudgetMinutes }
+// Draft the text alternative for ONE visual note. The author reviews the
+// draft before saving; nothing is stored by this prompt.
+function altTextPrompt({ topic, objective, visual }) {
+  return `Write the text alternative for the visual described below. A learner \
+who cannot see it will read your words instead, so they must carry the same \
+meaning.
+
+═══ LESSON TOPIC ═══
+${topic}
+
+═══ LESSON OBJECTIVE ═══
+${objective}
+
+═══ THE VISUAL (a brief for whoever draws it) ═══
+${visual}
+
+═══ REQUIREMENTS ═══
+- "alt_text": one sentence, 125 characters or fewer. Say what the visual \
+shows and why it matters to the objective. State the meaning, not the look. \
+Do not start with "image of", "picture of", or "diagram of"
+- "long_description": ONLY if the visual is a diagram, flow, chart, or \
+comparison with several parts or relationships. Then write plain sentences \
+in reading order: the parts, how they connect, and what to conclude. Use the \
+labels from the brief. Never say "left", "right", "above", or a color. For a \
+simple visual set it to an empty string
+- Grade 8 reading level. Spell out acronyms on first use. Second person, \
+active voice
+
+Respond in this JSON schema:
+{
+  "alt_text": "string (125 characters or fewer)",
+  "long_description": "string (empty when the visual is simple)"
+}`
+}
+
+module.exports = { blueprintPrompt, textPrompt, tabsPrompt, textBlockPrompt, altTextPrompt, textBudgetMinutes }

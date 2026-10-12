@@ -2,26 +2,112 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "FlipCardDeckArtifact",
   "type": "object",
-  "required": ["learning_objective", "cards"],
+  "required": [
+    "learning_objective",
+    "cards"
+  ],
   "additionalProperties": true,
   "properties": {
-    "learning_objective": { "type": "string", "minLength": 1 },
-    "estimated_minutes": { "type": "number" },
-    "visual_anchor_description": { "type": "string" },
-    "spaced_repetition_notes": { "type": "string" },
+    "learning_objective": {
+      "type": "string",
+      "minLength": 1
+    },
+    "estimated_minutes": {
+      "type": "number"
+    },
+    "visual_anchor_description": {
+      "type": "string"
+    },
+    "spaced_repetition_notes": {
+      "type": "string"
+    },
     "cards": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["type", "front", "back"],
+        "required": [
+          "type",
+          "front",
+          "back"
+        ],
         "additionalProperties": true,
         "properties": {
-          "type": { "type": "string", "enum": ["hook", "content", "apply"] },
-          "front": { "type": "string", "minLength": 1 },
-          "back": { "type": "string", "minLength": 1 }
+          "type": {
+            "type": "string",
+            "enum": [
+              "hook",
+              "content",
+              "apply"
+            ]
+          },
+          "front": {
+            "type": "string",
+            "minLength": 1
+          },
+          "back": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
+    },
+    "alt_text": {
+      "type": "string"
+    },
+    "long_description": {
+      "type": "string"
+    },
+    "decorative": {
+      "type": "boolean"
+    },
+    "decorative_reason": {
+      "type": "string"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "visual_anchor_description"
+        ],
+        "properties": {
+          "visual_anchor_description": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "then": {
+        "anyOf": [
+          {
+            "required": [
+              "alt_text"
+            ],
+            "properties": {
+              "alt_text": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          {
+            "required": [
+              "decorative",
+              "decorative_reason"
+            ],
+            "properties": {
+              "decorative": {
+                "const": true
+              },
+              "decorative_reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
 }
