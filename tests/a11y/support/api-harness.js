@@ -124,7 +124,11 @@ const mock = http.createServer((req, res) => {
       const m = user.match(/^Focus: (.*)$/m)
       out = m ? { ...DECK, cards: DECK.cards.map(c => ({ ...c, front: `${c.front} :: ${m[1]}` })) } : DECK
     }
-    else if (/^Generate a knowledge check/.test(user)) out = KC
+    else if (/^Generate a knowledge check/.test(user)) {
+      out = JSON.parse(JSON.stringify(KC))
+      if (mode === 'kc_two_keys') out.items[0].options[1].correct = true
+      if (mode === 'kc_no_key') out.items[1].options.forEach(o => { o.correct = false })
+    }
     else if (/^Generate a branching scenario/.test(user)) out = SCEN
     else out = {}
     const content = mode === 'notjson' ? 'Here you go, no JSON.' : JSON.stringify(out)

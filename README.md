@@ -189,7 +189,7 @@ npm run test:a11y                 # shortcut for the accessibility area
 
 Files named `api-*.test.js` need no browser. Files named `ui-*.test.js` drive
 Chromium. To use a Chromium or Chrome you already have, set `BYTE_TEST_CHROMIUM`
-to its path. A full run takes about 25 minutes; `-- api` takes about 2.
+to its path. A full run takes about 5 minutes; `-- api` takes about 2.
 
 ## Smoke Test
 

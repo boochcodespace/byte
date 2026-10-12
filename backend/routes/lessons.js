@@ -243,6 +243,17 @@ router.put('/:lessonId/a11y/reviews', (req, res) => {
   }
 })
 
+// Copy this block's artifact for this lesson only (see "Edit everywhere" vs "Make a copy").
+router.post('/:lessonId/blocks/:blockId/artifact/copy', (req, res) => {
+  try {
+    checkIds(req)
+    const { projectSlug, lessonId, blockId } = req.params
+    return sendOk(res, service.copyBlockArtifact(projectSlug, lessonId, blockId))
+  } catch (err) {
+    return fail(res, 'lessons:artifact-copy', err)
+  }
+})
+
 router.post('/:lessonId/blocks/:blockId/move', (req, res) => {
   try {
     checkIds(req)

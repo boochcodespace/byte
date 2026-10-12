@@ -290,7 +290,7 @@ async function main() {
     }
     await page.goto(`${APP}/projects/${P}/lessons/${idR}`)
     await page.waitForSelector('.lesson-artifact .flipcard-deck')
-    check('a ready artifact block offers Regenerate, Replace and Remove', (await page.locator('.lesson-artifact:has(.kc) >> .lesson-actions >> button').allTextContents()).join('|') === 'Regenerate|Replace|Remove')
+    check('a ready knowledge check block offers Edit, Regenerate, Replace and Remove', (await page.locator('.lesson-artifact:has(.kc) >> .lesson-actions >> button').allTextContents()).join('|') === 'Edit|Regenerate|Replace|Remove')
     // build up progress in the knowledge check and the scenario
     await page.click('.lesson-artifact .kc-option:has-text("D1-1")')
     await page.waitForSelector('.lesson-artifact .kc-feedback')

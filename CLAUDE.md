@@ -30,7 +30,7 @@ accessible content and must never generate inaccessible content by default.
 Run the tests from the repo root:
 
 ```
-npm run test:all                 # every suite (about 25 minutes)
+npm run test:all                 # every suite (about 5 minutes)
 npm run test:all -- api          # API files only, no browser (about 2 minutes)
 npm run test:all -- lessons ui   # one area, one kind (areas: a11y, lessons, artifacts, settings, providers)
 npm run test:a11y                # the accessibility area only

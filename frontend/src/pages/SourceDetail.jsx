@@ -5,7 +5,9 @@ import {
   getTypeMeta,
   ARTIFACT_TYPE_OPTIONS,
   DEFAULT_TYPE,
+  EDITABLE_ARTIFACT_TYPES,
 } from '../artifact-renderers/registry'
+import ArtifactEditShell from '../components/ArtifactEditShell'
 import { api } from '../lib/apiFetch'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { actionPropsFor } from '../lib/errorActions'
@@ -51,6 +53,8 @@ function SourceDetail() {
 
   const [saveLabel, setSaveLabel] = useState('Save')
   const [selectedArtifact, setSelectedArtifact] = useState(null)
+  const [editingArtifact, setEditingArtifact] = useState(false)   // the text editor is open for the selected artifact
+  const [announce, setAnnounce] = useState('')
 
   const [artifactType, setArtifactType] = useState('flip-card-deck')
 
@@ -64,7 +68,7 @@ function SourceDetail() {
   const saveAction = useAsyncAction()
   const generateAction = useAsyncAction()
 
-  const loadSource = useCallback(async () => {
+  const loadSource = useCallback(async (selectFolder) => {
     const data = await loadAction.run(() => api.get(sourceUrl))
     if (!data) return
     setSource(data)
@@ -76,7 +80,9 @@ function SourceDetail() {
       learningObjectives: data.context?.learningObjectives || ''
     })
     if (data.artifacts?.length > 0) {
-      setSelectedArtifact(data.artifacts[0])
+      setSelectedArtifact(
+        (typeof selectFolder === 'string' && data.artifacts.find(a => a.folder === selectFolder)) || data.artifacts[0]
+      )
     }
   }, [loadAction, sourceUrl])
 
@@ -199,7 +205,7 @@ function SourceDetail() {
                       key={artifact.folder || i}
                       className={`artifact-item ${selectedArtifact === artifact ? 'active' : ''}`}
                       aria-pressed={selectedArtifact === artifact}
-                      onClick={() => setSelectedArtifact(artifact)}
+                      onClick={() => { setSelectedArtifact(artifact); setEditingArtifact(false) }}
                     >
                       <span className="artifact-item-icon" aria-hidden="true">{meta.icon}</span>
                       <span>
@@ -216,10 +222,56 @@ function SourceDetail() {
             // Older artifacts have no `type` field — fall back to the
             // default (flip-card-deck) so nothing on disk looks broken
             // after the refactor.
-            const Renderer = getRenderer(selectedArtifact.type || DEFAULT_TYPE)
+            const type = selectedArtifact.type || DEFAULT_TYPE
+            const Renderer = getRenderer(type)
+            const meta = getTypeMeta(type)
+            const editable = EDITABLE_ARTIFACT_TYPES.has(type) && !!selectedArtifact.folder
+            const closeEditor = () => {
+              setEditingArtifact(false)
+              setTimeout(() => document.querySelector('[data-focus-key="source-edit"]')?.focus(), 0)
+            }
             return (
               <div className="card artifact-preview">
-                <Renderer artifact={selectedArtifact} />
+                <div className="sr-only" role="status" aria-live="polite">{announce}</div>
+                {(editable || selectedArtifact.edited) && (
+                  <div className="artifact-preview-top">
+                    {selectedArtifact.edited && <span className="lesson-badge">Edited by you</span>}
+                    {editable && !editingArtifact && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        data-focus-key="source-edit"
+                        aria-label={`Edit ${meta.label.toLowerCase()}`}
+                        onClick={() => setEditingArtifact(true)}
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                )}
+                {editingArtifact ? (
+                  <ArtifactEditShell
+                    key={`${slug}/${selectedArtifact.folder}`}
+                    projectSlug={projectSlug}
+                    source={slug}
+                    folder={selectedArtifact.folder}
+                    onSaved={async resp => {
+                      await loadSource(selectedArtifact.folder)
+                      setAnnounce(resp.changed ? `Saved your changes to the ${meta.label.toLowerCase()}.` : `No changes to save in the ${meta.label.toLowerCase()}.`)
+                      closeEditor()
+                    }}
+                    onCancel={closeEditor}
+                    onCopy={async () => {
+                      const copy = await api.post(`/api/projects/${projectSlug}/artifacts/${slug}/${selectedArtifact.folder}/copy`, {})
+                      if (copy) {
+                        await loadSource(copy.artifact)
+                        setAnnounce('Made a copy. Now editing the copy.')
+                      }
+                    }}
+                  />
+                ) : (
+                  <Renderer artifact={selectedArtifact} />
+                )}
               </div>
             )
           })()}

@@ -61,3 +61,6 @@ export function getTypeMeta(type) {
   const { label, icon } = getEntry(type)
   return { label, icon }
 }
+
+// Artifact types that have a text editor. Each editor lands in its own commit.
+export const EDITABLE_ARTIFACT_TYPES = new Set(['knowledge-check'])

@@ -1,8 +1,10 @@
-import { useRef, useLayoutEffect } from 'react'
+import { forwardRef, useRef, useLayoutEffect, useImperativeHandle } from 'react'
 
-// A text area that grows with its content (for long visual notes).
-function GrowTextarea({ value, onChange, disabled, rows = 2, ...rest }) {
+// A text area that grows with its content (long visual notes, artifact text).
+// Accepts a ref, so a parent can move focus into it.
+const GrowTextarea = forwardRef(function GrowTextarea({ value, onChange, disabled, rows = 2, ...rest }, forwarded) {
   const ref = useRef(null)
+  useImperativeHandle(forwarded, () => ref.current)
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
@@ -20,6 +22,6 @@ function GrowTextarea({ value, onChange, disabled, rows = 2, ...rest }) {
       {...rest}
     />
   )
-}
+})
 
 export default GrowTextarea

@@ -291,6 +291,10 @@ export function ArtifactBlock({
   onRemove,
   removeMessage,
   label,
+  canEdit,
+  editing,
+  onEdit,
+  editor,
   children,
 }) {
   const meta = getTypeMeta(block.artifact_type)
@@ -311,15 +315,27 @@ export function ArtifactBlock({
       <div className="lesson-block lesson-artifact">
         <div className="lesson-label">
           <span aria-hidden="true">{meta.icon}</span> {meta.label}
+          {artifact.edited && <span className="lesson-badge">Edited by you</span>}
           <span className="lesson-minutes">{block.minutes} min</span>
         </div>
-        {/* The renderer owns the learner's progress. It only resets if
-            `artifact` changes identity or this key changes. */}
-        <Renderer key={`${block.id}:${block.ref.source}/${block.ref.artifact}`} artifact={artifact} />
-        {contextSummary(block.generation_context) && (
+        {editing ? (
+          editor
+        ) : (
+          /* The renderer owns the learner's progress. It only resets if
+             `artifact` changes identity or this key changes. */
+          <Renderer key={`${block.id}:${block.ref.source}/${block.ref.artifact}`} artifact={artifact} />
+        )}
+        {!editing && contextSummary(block.generation_context) && (
           <p className="lesson-proposal-note">Generated with: {contextSummary(block.generation_context)}</p>
         )}
-        <div className="lesson-actions">
+        {!editing && (<div className="lesson-actions">
+          {canEdit && (
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onEdit} disabled={locked}
+              data-focus-key={`edit:${block.id}`}
+              aria-label={label ? `Edit ${label}` : undefined}>
+              Edit
+            </button>
+          )}
           <button type="button" className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={locked}
             data-focus-key={`regen:${block.id}`}
             aria-label={label ? `Regenerate ${label}` : undefined}>
@@ -327,7 +343,7 @@ export function ArtifactBlock({
           </button>
           <ReplaceControl onPickExisting={onPickExisting} onGenerate={onGenerate} locked={locked} label={label} />
           <RemoveControl onRemove={onRemove} locked={locked} label={label} message={removeMessage} />
-        </div>
+        </div>)}
         {spinner}
         {children}
       </div>

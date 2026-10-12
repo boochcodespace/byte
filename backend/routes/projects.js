@@ -15,6 +15,7 @@ const slugify = require('slugify')
 const crypto = require('crypto')
 const sourcesRouter = require('./sources')
 const lessonsRouter = require('./lessons')
+const artifactEditRouter = require('./artifact-edit')
 const { listProjectArtifacts } = require('../lib/project-artifacts')
 const { ERROR_TYPES, sendOk, sendError, mapSdkError } = require('../lib/error-types')
 
@@ -24,6 +25,7 @@ const PROJECTS_DIR = path.join(os.homedir(), 'Byte', 'projects')
 router.use('/:projectSlug/sources', sourcesRouter)
 // Mount lessons nested router (text-first lessons with embedded artifacts)
 router.use('/:projectSlug/lessons', lessonsRouter)
+router.use('/:projectSlug/artifacts', artifactEditRouter)
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

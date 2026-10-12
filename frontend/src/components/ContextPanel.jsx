@@ -19,6 +19,7 @@ import { useState } from 'react'
 //   lessonExperience  — the lesson's own level, shown as the default
 //   busy              — true while a generation is running
 //   submitLabel       — button text (default "Generate")
+//   confirmLabel      — the confirm button's text (default "Yes, replace my edits")
 //   overwriteWarning  — optional text. When set, submitting first asks the
 //                       user to confirm (used when regenerating would
 //                       replace hand edits)
@@ -41,6 +42,7 @@ function ContextPanel({
   busy,
   submitLabel = 'Generate',
   overwriteWarning,
+  confirmLabel = 'Yes, replace my edits',
   onSubmit,
   onCancel,
 }) {
@@ -152,7 +154,7 @@ function ContextPanel({
 
       <div className="lesson-actions">
         <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
-          {busy ? 'Generating...' : confirming ? 'Yes, replace my edits' : submitLabel}
+          {busy ? 'Generating...' : confirming ? confirmLabel : submitLabel}
         </button>
         <button type="button" className="btn btn-secondary btn-sm" onClick={confirming ? () => setConfirming(false) : onCancel} disabled={busy}>
           {confirming ? 'Back' : 'Cancel'}

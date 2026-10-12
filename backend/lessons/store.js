@@ -98,8 +98,27 @@ function readArtifact(projectSlug, source, artifact) {
   return readJson(path.join(sourceDirPath(projectSlug, source), 'artifacts', artifact, 'artifact.json'))
 }
 
+// Folder that holds one artifact (artifact.json plus anything saved with it).
+function artifactDirPath(projectSlug, source, artifact) {
+  return path.join(sourceDirPath(projectSlug, source), 'artifacts', artifact)
+}
+
+// Save an artifact in place. The file is written to a temporary name and
+// renamed, so a crash never leaves half a file. Callers validate first.
+function writeArtifact(projectSlug, source, artifact, data) {
+  if (!isSafeSegment(projectSlug) || !isSafeSegment(source) || !isSafeSegment(artifact)) {
+    throw new Error('Unsafe artifact reference')
+  }
+  const file = path.join(artifactDirPath(projectSlug, source, artifact), 'artifact.json')
+  const tmp = `${file}.tmp-${process.pid}-${Date.now()}`
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2))
+  fs.renameSync(tmp, file)
+}
+
 module.exports = {
   PROJECTS_DIR,
+  artifactDirPath,
+  writeArtifact,
   isSafeSegment,
   projectDir,
   sourceDirPath,

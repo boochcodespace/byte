@@ -103,7 +103,7 @@ const mock = http.createServer((req, res) => {
       out = m ? { ...DECK, cards: DECK.cards.map(c => ({ ...c, front: `${c.front} :: ${m[1]}` })) } : DECK
       delay = 600
     }
-    else if (/^Generate a knowledge check/.test(user)) { out = KC; delay = 600 }
+    else if (/^Generate a knowledge check/.test(user)) { out = mode === 'kc_distinct' ? { ...KC, learning_objective: 'KC-NEW-OBJ', items: KC.items.map(it => ({ ...it, stem: it.stem + ' (new)' })) } : KC; delay = 600 }
     else if (/^Generate a branching scenario/.test(user)) { out = SCEN; delay = 600 }
     const content = mode === 'notjson' ? 'Sorry, no JSON here.' : JSON.stringify(out)
     setTimeout(() => {

@@ -26,6 +26,7 @@ const store = require('./store')
 const { loadSources, assertWithinCap } = require('./sources')
 const { computeLesson } = require('./time')
 const { buildReport, exportBlockers } = require('./a11y-check')
+const artifactEdit = require('../lib/artifact-edit')
 const { blueprintPrompt, textPrompt, tabsPrompt, textBlockPrompt, altTextPrompt } = require('./prompts')
 const { validation, notFound } = require('./errors')
 const blueprintSchema = require('./schemas/blueprint.schema.json')
@@ -911,6 +912,22 @@ async function generateTextBlock(projectSlug, lessonId, blockId, body, llmConfig
   return presentLesson(projectSlug, lesson)
 }
 
+// ── artifact copy ────────────────────────────────────────────────────
+
+// "Make a copy for this lesson": copy the block's artifact into the same
+// source folder and point THIS lesson's block at the copy. Other lessons keep
+// the original. The copy keeps `edited`, and the block keeps its
+// generation_context (the block is the same block; only its reference moves).
+function copyBlockArtifact(projectSlug, lessonId, blockId) {
+  requireProject(projectSlug)
+  const lesson = requireLesson(projectSlug, lessonId)
+  const block = lesson.blocks.find(b => b.id === blockId)
+  if (!block || block.kind !== 'artifact' || !block.ref) throw notFound('That artifact block was not found.')
+  block.ref = artifactEdit.copyArtifact(projectSlug, block.ref.source, block.ref.artifact)
+  store.writeLesson(projectSlug, lesson)
+  return presentLesson(projectSlug, lesson)
+}
+
 // ── alt text draft ───────────────────────────────────────────────────
 
 // Draft a text alternative from a visual brief. Nothing is saved: the
@@ -1157,6 +1174,7 @@ module.exports = {
   editTextBlock,
   generateTextBlock,
   moveBlock,
+  copyBlockArtifact,
   a11yReport,
   setA11yReview,
   a11yExportBlockers,

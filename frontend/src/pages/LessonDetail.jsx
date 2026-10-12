@@ -13,7 +13,8 @@ import { TextBlock, TextEditor, ArtifactBlock } from '../components/LessonBlocks
 import { TabsBlock, TabsEditor } from '../components/TabsBlock'
 import InsertControl from '../components/InsertControl'
 import AccessibilityChecker from '../components/AccessibilityChecker'
-import { ARTIFACT_TYPE_OPTIONS } from '../artifact-renderers/registry'
+import { ARTIFACT_TYPE_OPTIONS, EDITABLE_ARTIFACT_TYPES, getTypeMeta } from '../artifact-renderers/registry'
+import ArtifactEditShell from '../components/ArtifactEditShell'
 import './Lesson.css'
 import { usePageTitle } from '../hooks/usePageTitle'
 
@@ -293,6 +294,28 @@ function LessonDetail() {
       api.post(`${base}/blocks/${block.id}/text/generate`, { context, ...(block.edited ? { overwrite: true } : {}) }))
   const saveText = (block, payload) =>
     runBlock(block.id, () => api.put(`${base}/blocks/${block.id}/text`, payload))
+  // Artifact editing. An artifact is shared by every lesson that uses it, so
+  // the edit shell asks first when another lesson uses it. After a save the
+  // lesson is reloaded (new minutes, new words); only the edited artifact gets a
+  // new identity, so progress in every other block survives.
+  const reloadLesson = async () => {
+    const resp = await api.get(base)
+    if (resp) applyResponse(resp)
+  }
+  const artifactSaved = async (block, resp) => {
+    await reloadLesson()
+    closeEdit(block.id)
+    const label = getTypeMeta(block.artifact_type).label.toLowerCase()
+    setAnnounce(resp.changed ? `Saved your changes to the ${label}.` : `No changes to save in the ${label}.`)
+  }
+  const copyForLesson = async block => {
+    const resp = await api.post(`${base}/blocks/${block.id}/artifact/copy`, {})
+    if (resp) {
+      applyResponse(resp)
+      setAnnounce('Made a copy for this lesson. Now editing the copy.')
+    }
+  }
+
   const removeBlock = async block => {
     const name = blockLabel(block)
     const resp = await runBlock(block.id, () => api.delete(`${base}/blocks/${block.id}`))
@@ -463,6 +486,21 @@ function LessonDetail() {
         onPickExisting={() => openPicker(block)}
         onRemove={() => removeBlock(block)}
         removeMessage={removeMessageFor(block, 'Remove this from the lesson? The artifact stays in your project.')}
+        canEdit={EDITABLE_ARTIFACT_TYPES.has(block.artifact_type)}
+        editing={editFor === block.id}
+        onEdit={() => openEdit(block)}
+        editor={block.ref && (
+          <ArtifactEditShell
+            key={`${block.id}:${block.ref.source}/${block.ref.artifact}`}
+            projectSlug={projectSlug}
+            source={block.ref.source}
+            folder={block.ref.artifact}
+            lessonId={lessonId}
+            onSaved={resp => artifactSaved(block, resp)}
+            onCancel={() => closeEdit(block.id)}
+            onCopy={() => copyForLesson(block)}
+          />
+        )}
       >
         {contextFor === block.id && (
           <ContextPanel
@@ -472,6 +510,10 @@ function LessonDetail() {
             lessonExperience={lesson.context?.experience}
             busy={working}
             submitLabel={block.state === 'ready' ? 'Regenerate' : 'Generate'}
+            overwriteWarning={artifact && artifact.edited
+              ? `Byte will make a new ${getTypeMeta(block.artifact_type).label.toLowerCase()} for this lesson. Your edited version stays in the project and in any other lesson that uses it.`
+              : undefined}
+            confirmLabel="Make a new one"
             onSubmit={ctx => generateArtifact(block, ctx)}
             onCancel={() => closeContext(block.id)}
           />

@@ -215,6 +215,46 @@ Open a drafted lesson, then **Preview as learner**.
       then save. It is not saved yet." A failed draft is announced as an alert.
 - [ ] In the tabs editor each tab's fields name their tab ("Tab 2 alt text").
 
+### Knowledge check editor (source page and lessons)
+
+Open a knowledge check, then press **Edit** ("Edit knowledge check").
+
+- [ ] **Shared warning.** If another lesson uses this check, you hear "This knowledge
+      check is used in other lessons too: <lesson names>. An edit changes it in all of
+      them…" with three buttons: "Edit everywhere", "Make a copy for this lesson" (on the
+      source page: "Make a copy"), and "Cancel". Focus is on the warning. **Cancel**
+      returns focus to Edit.
+- [ ] **Make a copy for this lesson.** It announces "Made a copy for this lesson. Now
+      editing the copy." and opens the editor with no second warning. The other lessons
+      keep the original.
+- [ ] **Editor opens.** Focus is in the first field ("Task setup"). Each question is a
+      group named "Question 1", "Question 2", and so on.
+- [ ] **Fields.** Every field reads its full name: "Question 1 text", "Question 1,
+      option A text", "Question 1, option A explanation". The options are in the stored
+      order, A then B then C. A line says learners see them in a shuffled order.
+- [ ] **The key.** Each question has one choice per option, read as "Question 1: option A
+      is the key, radio button, selected, 1 of 3". Use **Tab** to reach the group and the
+      **arrow keys** to move the key to another option. Only one can be selected.
+- [ ] **Writing notes.** Under each question you find "Writing notes for question 1
+      (advice only, never blocks saving)". With the rotor (VO+U) it is in the Headings
+      list. Make the key the longest option: a note names the option and says why. Notes
+      are not announced on their own while you type.
+- [ ] **Older file with no key or several keys.** The question reads "Needs a key. No
+      option is marked as the key." (or "3 options are marked"). No radio is selected.
+      Press **Save changes**: you hear an alert "Save is blocked. Question 2 needs exactly
+      one option marked as the key." and focus moves to the "Needs a key" line. Choose a
+      key and save: it saves.
+- [ ] **Save.** Press **Save changes**. You hear "Saved your changes to the knowledge
+      check." Focus returns to the Edit button. With nothing changed you hear "No changes
+      to save in the knowledge check."
+- [ ] **A badge.** "Edited by you" is read after the title once saved.
+- [ ] **Regenerate an edited check.** Press Regenerate, fill the panel, press Regenerate
+      again: an alert reads "Byte will make a new knowledge check for this lesson. Your
+      edited version stays in the project and in any other lesson that uses it." The
+      button reads "Make a new one". **Back** returns to the form.
+- [ ] **Learner preview.** The edited words are read; nothing says "edited", "needs a
+      key", or shows a letter as the key.
+
 ### Context panel and pickers
 
 - [ ] "Steer this block" opens with focus in the first field. Experience level and counts

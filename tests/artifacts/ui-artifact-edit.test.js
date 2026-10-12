@@ -1,0 +1,270 @@
+// Browser: the knowledge check editor (D2 commit 1), on the source page and in
+// lessons: the shared-artifact warning and copy, needs-a-key, advisory notes,
+// regenerate wording, progress protection, axe on every editor state, and a
+// keyboard-only run.
+// Run by `npm run test:all`. Uses a mock AI model and a throwaway HOME.
+const h = require('../a11y/support/ui-harness')
+const { APP, HOME, L, MOCK, P, PRIMARY, api, check, draftViaApi, fs, path, setMode, sleep } = h
+const { AxeBuilder } = require('@axe-core/playwright')
+const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']
+
+async function main() {
+  await h.startEnv({ ui: true })
+  await api('GET', '/projects')
+  await api('POST', '/settings', { provider: 'local', model: 'm', baseUrl: `${MOCK}/v1` })
+  const GEN = `/projects/${P}/sources/${PRIMARY}/artifacts/generate`
+  const A = `/projects/${P}/artifacts`
+  const artDir = f => path.join(HOME, 'Byte', 'projects', P, 'sources', PRIMARY, 'artifacts', f)
+  const readArt = f => JSON.parse(fs.readFileSync(path.join(artDir(f), 'artifact.json'), 'utf-8'))
+  const writeArt = (f, a) => fs.writeFileSync(path.join(artDir(f), 'artifact.json'), JSON.stringify(a))
+  const lessonOf = async id => (await api('GET', `${L}/${id}`)).data
+  const refsOf = async type => (await api('GET', `${A}?type=${type}`)).data
+  for (const t of ['flip-card-deck', 'scenario-branching', 'knowledge-check']) { await sleep(5); await api('POST', GEN, { artifactType: t }) }
+  const kc1 = (await refsOf('knowledge-check'))[0], flipRef = (await refsOf('flip-card-deck'))[0], scRef = (await refsOf('scenario-branching'))[0]
+  const accept = async (lid, type, ref) => {
+    const b = (await lessonOf(lid)).lesson.blocks.find(x => x.artifact_type === type && x.state === 'proposed')
+    return api('POST', `${L}/${lid}/blocks/${b.id}/artifact`, { mode: 'existing', source: ref.source, artifact: ref.folder })
+  }
+  const L1 = await draftViaApi({ topic: 'First lesson' }, {})
+  const L2 = await draftViaApi({ topic: 'Second lesson' }, {})
+  await accept(L1, 'knowledge-check', kc1); await accept(L1, 'flip-card-deck', flipRef); await accept(L1, 'scenario-branching', scRef)
+  await accept(L2, 'knowledge-check', kc1)
+  const L1title = (await lessonOf(L1)).lesson.title, L2title = (await lessonOf(L2)).lesson.title
+
+  const browser = await h.launchBrowser()
+  const ctx = await browser.newContext({ viewport: { width: 1200, height: 1300 } })
+  const page = await ctx.newPage()
+  const errors = []
+  page.on('pageerror', e => errors.push(String(e)))
+  page.on('console', m => { if (m.type() === 'error' && !/^Failed to load resource/.test(m.text())) errors.push(m.text()) })
+  const base = `${APP}/projects/${P}`
+  const go = async u => { await page.goto(u); await page.waitForTimeout(600) }
+  const scan = async state => {
+    const r = await new AxeBuilder({ page }).withTags(WCAG).analyze()
+    check(`axe 0 violations (WCAG 2.2 AA): ${state}`, r.violations.length === 0, r.violations.map(v => `${v.id} ${v.nodes[0].target.join(' ')}`))
+  }
+  const activeName = () => page.evaluate(() => { const e = document.activeElement; return (e.getAttribute('aria-label') || (e.labels && e.labels[0] && e.labels[0].textContent) || e.textContent || '').trim().slice(0, 90) })
+  const SRC = `${base}/sources/${PRIMARY}`
+  const pickKC = async () => { await page.locator('.artifact-item:has-text("Knowledge Check")').first().click(); await page.waitForTimeout(300) }
+  const editor = () => page.locator('form[aria-label="Edit knowledge check"]')
+  const status = () => page.locator('[role=status]:has-text("knowledge check")').first()
+
+  try {
+    console.log('=== SOURCE PAGE: a shared artifact asks first ===')
+    await go(SRC); await pickKC()
+    const editBtn = page.getByRole('button', { name: 'Edit knowledge check' })
+    check('the artifact preview has an Edit button', await editBtn.isVisible())
+    await editBtn.click()
+    const gate = page.locator('.artifact-edit-gate')
+    await gate.waitFor()
+    const gateText = await gate.textContent()
+    check('it is used in two lessons, so a warning names both', gateText.includes(`"${L1title}"`) && gateText.includes(`"${L2title}"`) && /used in 2 lessons/.test(gateText), gateText)
+    check('and offers two actions plus Cancel', await gate.getByRole('button', { name: 'Edit everywhere' }).isVisible() && await gate.getByRole('button', { name: 'Make a copy' }).isVisible() && await gate.getByRole('button', { name: 'Cancel' }).isVisible())
+    check('focus is on the warning', await page.evaluate(() => !!document.activeElement.closest('.artifact-edit-gate')))
+    await scan('source page: shared-artifact warning')
+    await gate.getByRole('button', { name: 'Cancel' }).click()
+    check('Cancel closes it and returns focus to Edit', (await activeName()) === 'Edit knowledge check')
+    await editBtn.click(); await gate.waitFor()
+    await gate.getByRole('button', { name: 'Edit everywhere' }).click()
+    await editor().waitFor()
+
+    console.log('=== THE EDITOR ===')
+    check('focus moves into the first field', await page.evaluate(() => document.activeElement.tagName === 'TEXTAREA' && !!document.activeElement.closest('form')))
+    check('it reminds the author that edits show in both lessons', await page.locator('text=Your edits show in every lesson that uses this knowledge check').isVisible())
+    const art0 = readArt(kc1.folder)
+    check('options are listed in STORED order, with letters', (await editor().getByLabel('Question 1, option A text').inputValue()) === art0.items[0].options[0].text && (await editor().getByLabel('Question 1, option B text').inputValue()) === art0.items[0].options[1].text && (await editor().getByLabel('Question 1, option C text').inputValue()) === art0.items[0].options[2].text)
+    check('the editor says learners see them shuffled', await editor().locator('text=shuffled order').first().isVisible())
+    check('the stored key is the checked radio', await editor().getByLabel('Question 1: option A is the key').isChecked() && !(await editor().getByLabel('Question 1: option B is the key').isChecked()))
+    check('every field has a visible label, and radios say which question and option', (await editor().getByLabel(/Question 3: option [ABC] is the key/).count()) === 3)
+    check('there are no Add or Remove buttons (text only)', !(await editor().locator('button:has-text("Add"), button:has-text("Remove")').count()))
+    check('advisory notes: the starting key is not flagged unless it is the longest', await editor().locator('.artifact-editor-notes').count() === 3)
+    // live notes
+    const q1Notes = editor().locator('fieldset').nth(0).locator('.artifact-editor-notes')
+    await editor().getByLabel('Question 1, option A text').fill('KEY-1 is now by far the longest answer text in the whole question')
+    check('making the key the longest adds a note naming the option, live', await q1Notes.locator('li:has-text("The key (option A) is the longest option")').isVisible())
+    await editor().getByLabel('Question 1, option B explanation').fill('This is weaker than option A because it skips the check.')
+    check('a letter reference in an explanation adds a position note', await q1Notes.locator('li:has-text("option A")').count() >= 2)
+    await scan('source page: editor with advisory notes')
+    await editor().getByLabel('Question 1, option C text').fill('All of the above')
+    check('"All of the above" adds a note', await q1Notes.locator('li:has-text("all of the above")').isVisible())
+    await editor().getByLabel('Question 1, option C text').fill(art0.items[0].options[2].text)
+    await editor().getByLabel('Question 1, option B explanation').fill(art0.items[0].options[1].rationale)
+    await editor().getByLabel('Question 1, option A text').fill(art0.items[0].options[0].text + ' (edited)')
+    check('fixing the wording clears those notes (the key is no longer the only longest? not required)', !(await q1Notes.locator('li:has-text("option B")').count()))
+    // change a key by keyboard
+    await editor().getByLabel('Question 2: option C is the key').focus()
+    await page.keyboard.press('Space')
+    check('choosing another key by keyboard moves the check mark', await editor().getByLabel('Question 2: option C is the key').isChecked() && !(await editor().getByLabel('Question 2: option A is the key').isChecked()))
+    await editor().getByLabel('Task setup').fill('EDITED SETUP words for the learner.')
+    await editor().getByRole('button', { name: 'Save changes' }).click()
+    await page.waitForFunction(() => !document.querySelector('form[aria-label="Edit knowledge check"]'))
+    const saved1 = readArt(kc1.folder)
+    check('saved: edited flag, new setup, new key, edited option text', saved1.edited === true && saved1.setup === 'EDITED SETUP words for the learner.' && saved1.items[1].options[2].correct === true && saved1.items[1].options[0].correct === false && saved1.items[0].options[0].text.endsWith('(edited)'))
+    check('focus returns to the Edit button', (await activeName()) === 'Edit knowledge check')
+    check('the save is announced in a live region', /Saved your changes to the knowledge check\./.test(await status().textContent()))
+    check('the preview shows the new setup and an "Edited by you" badge', await page.locator('.artifact-preview >> text=EDITED SETUP words for the learner.').isVisible() && await page.locator('.artifact-preview .lesson-badge:has-text("Edited by you")').isVisible())
+    await scan('source page: after saving')
+    check('the other lessons show the edit too', (await lessonOf(L2)).artifacts[`${PRIMARY}/${kc1.folder}`].setup === 'EDITED SETUP words for the learner.' && (await lessonOf(L1)).artifacts[`${PRIMARY}/${kc1.folder}`].edited === true)
+
+    console.log('=== SAVE WITH NOTHING CHANGED ===')
+    await editBtn.click(); await gate.waitFor(); await gate.getByRole('button', { name: 'Edit everywhere' }).click(); await editor().waitFor()
+    const editedAt = readArt(kc1.folder).edited_at
+    await editor().getByRole('button', { name: 'Save changes' }).click()
+    await page.waitForFunction(() => !document.querySelector('form[aria-label="Edit knowledge check"]'))
+    check('saving without changes says so and writes nothing', /No changes to save in the knowledge check\./.test(await status().textContent()) && readArt(kc1.folder).edited_at === editedAt)
+
+    console.log('=== OLDER FILES: needs a key ===')
+    setMode('ok'); await sleep(5); await api('POST', GEN, { artifactType: 'knowledge-check' })
+    const kc2 = (await refsOf('knowledge-check'))[0]
+    const legacy = readArt(kc2.folder)
+    legacy.items[1].options.forEach(o => { o.correct = false })
+    legacy.items[2].options.forEach(o => { o.correct = true })
+    writeArt(kc2.folder, legacy)
+    await go(SRC); await pickKC()
+    check('the newest knowledge check is the older file', await page.locator('.artifact-preview').isVisible())
+    await editBtn.click(); await editor().waitFor()
+    const flags = editor().locator('.a11y-needs-key')
+    check('two questions are flagged "Needs a key", in words', (await flags.count()) === 2 && /Needs a key\./.test(await flags.nth(0).textContent()) && /No option is marked/.test(await flags.nth(0).textContent()) && /3 options are marked/.test(await flags.nth(1).textContent()), await flags.allTextContents())
+    check('no radio is checked for a flagged question', (await editor().locator('input[type=radio]:checked').count()) === 1)
+    await scan('source page: editor with needs-a-key flags')
+    await editor().getByRole('button', { name: 'Save changes' }).click()
+    check('Save is blocked, with an alert naming the questions', /Save is blocked\. Questions 2, 3 need exactly one option marked as the key\./.test(await page.locator('form[aria-label="Edit knowledge check"] [role=alert]').first().textContent()))
+    check('focus moves to the first flag', await page.evaluate(() => document.activeElement.classList.contains('a11y-needs-key')))
+    check('nothing was written', readArt(kc2.folder).edited === undefined)
+    await scan('source page: save blocked')
+    await editor().getByLabel('Question 2: option A is the key').check()
+    await editor().getByLabel('Question 3: option C is the key').check()
+    check('choosing a key clears that flag', (await flags.count()) === 0 || !(await flags.first().isVisible()))
+    await editor().getByRole('button', { name: 'Save changes' }).click()
+    await page.waitForFunction(() => !document.querySelector('form[aria-label="Edit knowledge check"]'))
+    check('with a key in each question it saves', readArt(kc2.folder).edited === true && readArt(kc2.folder).items[1].options.filter(o => o.correct).length === 1 && readArt(kc2.folder).items[2].options.filter(o => o.correct).length === 1)
+
+    console.log('=== LESSON PAGE: make a copy for this lesson ===')
+    await go(`${base}/lessons/${L1}`)
+    const kcBlock = page.locator('.lesson-artifact').filter({ hasText: 'Knowledge Check' })
+    const lessonEdit = page.getByRole('button', { name: /^Edit knowledge check/ })
+    check('the knowledge check block has a uniquely named Edit button', await lessonEdit.count() === 1)
+    // other blocks hold progress we must keep
+    await page.locator('.scenario-choice').first().click()
+    await page.locator('.flipcard:not(.flipped) .flipcard-front .flipcard-flip, .flipcard.flipped .flipcard-back .flipcard-flip').first().click().catch(() => {})
+    await page.waitForTimeout(500)
+    const flipState = () => page.locator('.lesson-artifact:has(.flipcard-deck) .flipcard').first().getAttribute('class')
+    const flippedBefore = /flipped/.test(await flipState())
+    const scenarioAnswered = async () => (await page.locator('.scenario-feedback').isVisible()) && (await page.locator('.scenario-choice:disabled').count()) >= 1
+    check('(setup) a scenario is answered and a flip card flipped', await scenarioAnswered() && flippedBefore)
+    await kcBlock.locator('.kc-option').first().click()
+    check('(setup) the knowledge check itself has an answer in progress', await kcBlock.locator('.kc-feedback').isVisible())
+    await lessonEdit.click()
+    const lessonGate = kcBlock.locator('.artifact-edit-gate')
+    await lessonGate.waitFor()
+    const lg = await lessonGate.textContent()
+    check('the lesson warns that ANOTHER lesson uses it, naming it (not this one)', lg.includes(`"${L2title}"`) && !lg.includes(`"${L1title}"`) && /is used in other lessons too/.test(lg), lg)
+    await scan('lesson page: shared-artifact warning')
+    const refBefore = (await lessonOf(L1)).lesson.blocks.find(b => b.artifact_type === 'knowledge-check').ref.artifact
+    await lessonGate.getByRole('button', { name: 'Make a copy for this lesson' }).click()
+    await editor().waitFor()
+    const l1after = (await lessonOf(L1)).lesson.blocks.find(b => b.artifact_type === 'knowledge-check')
+    check('this lesson now points at a copy in the same source folder', l1after.ref.artifact !== refBefore && l1after.ref.source === PRIMARY && readArt(l1after.ref.artifact).edited === true && readArt(l1after.ref.artifact).copied_from.artifact === refBefore)
+    check('the other lesson still points at the original', (await lessonOf(L2)).lesson.blocks.find(b => b.artifact_type === 'knowledge-check').ref.artifact === refBefore)
+    check('the editor opens on the copy with no second warning', !(await lessonGate.count()) && await editor().isVisible())
+    check('progress in OTHER blocks survives opening the editor', await scenarioAnswered())
+    await editor().getByLabel('Question 1 text').fill('ONLY IN THE FIRST LESSON what do you do?')
+    await editor().getByRole('button', { name: 'Save changes' }).click()
+    await page.waitForFunction(() => !document.querySelector('form[aria-label="Edit knowledge check"]'))
+    check('the copy is edited; the original and the other lesson are not', readArt(l1after.ref.artifact).items[0].stem.startsWith('ONLY IN THE FIRST LESSON') && !readArt(refBefore).items[0].stem.startsWith('ONLY IN') && (await lessonOf(L2)).artifacts[`${PRIMARY}/${refBefore}`].items[0].stem === readArt(refBefore).items[0].stem)
+    check('PROTECTION: the scenario answer and the flipped card survived the edit and the save', await scenarioAnswered() && /flipped/.test(await flipState()) === flippedBefore)
+    check('the edited knowledge check starts fresh (its own progress reset)', !(await kcBlock.locator('.kc-feedback').count()) && await kcBlock.locator('text=ONLY IN THE FIRST LESSON').isVisible())
+    check('focus returns to this block\'s Edit button, and the save is announced', /^Edit knowledge check/.test(await activeName()) && /Saved your changes to the knowledge check\./.test(await status().textContent()))
+    check('the block shows "Edited by you"', await kcBlock.locator('.lesson-badge:has-text("Edited by you")').isVisible())
+    await scan('lesson page: after editing a copy')
+
+    console.log('=== LESSON PAGE: edit everywhere ===')
+    const L3 = await draftViaApi({ topic: 'Third lesson' }, {})
+    await accept(L3, 'knowledge-check', { source: PRIMARY, folder: refBefore })
+    await go(`${base}/lessons/${L2}`)
+    const kcBlock2 = page.locator('.lesson-artifact').filter({ hasText: 'Knowledge Check' })
+    await page.getByRole('button', { name: /^Edit knowledge check/ }).click()
+    await kcBlock2.locator('.artifact-edit-gate').waitFor()
+    check('lesson 2 is warned about lesson 3', (await kcBlock2.locator('.artifact-edit-gate').textContent()).includes('"Third lesson"'))
+    await kcBlock2.locator('.artifact-edit-gate').getByRole('button', { name: 'Edit everywhere' }).click()
+    await editor().waitFor()
+    await editor().getByLabel('Question 3 text').fill('EVERYWHERE EDIT for question three?')
+    await editor().getByRole('button', { name: 'Save changes' }).click()
+    await page.waitForFunction(() => !document.querySelector('form[aria-label="Edit knowledge check"]'))
+    check('"Edit everywhere" changes the shared artifact: lesson 3 shows it', (await lessonOf(L3)).artifacts[`${PRIMARY}/${refBefore}`].items[2].stem === 'EVERYWHERE EDIT for question three?')
+
+    console.log('=== REGENERATE: the warning and what stays ===')
+    await go(`${base}/lessons/${L1}`)
+    const kcBlock1 = page.locator('.lesson-artifact').filter({ hasText: 'Knowledge Check' })
+    await page.getByRole('button', { name: /^Regenerate knowledge check/ }).click()
+    await kcBlock1.locator('.context-panel button:has-text("Regenerate")').click()
+    const warnText = 'Byte will make a new knowledge check for this lesson. Your edited version stays in the project and in any other lesson that uses it.'
+    check('regenerating an edited knowledge check shows the agreed wording', (await kcBlock1.locator('.context-panel [role=alert]').textContent()) === warnText, await kcBlock1.locator('.context-panel [role=alert]').textContent())
+    check('and the confirm button says "Make a new one"', await kcBlock1.locator('.context-panel button:has-text("Make a new one")').isVisible())
+    await scan('lesson page: regenerate warning')
+    await kcBlock1.locator('.context-panel button:has-text("Back")').click()
+    check('Back returns to the form; nothing was generated', !(await kcBlock1.locator('.context-panel [role=alert]').count()) && (await lessonOf(L1)).lesson.blocks.find(b => b.artifact_type === 'knowledge-check').ref.artifact === l1after.ref.artifact)
+    setMode('kc_distinct')
+    await kcBlock1.locator('.context-panel button:has-text("Regenerate")').click()
+    await kcBlock1.locator('.context-panel button:has-text("Make a new one")').click()
+    await page.waitForFunction(() => document.body.textContent.includes('(new)'))
+    const l1regen = (await lessonOf(L1)).lesson.blocks.find(b => b.artifact_type === 'knowledge-check')
+    check('a NEW knowledge check is made for this lesson', l1regen.ref.artifact !== l1after.ref.artifact)
+    check('the edited version stays in the project, still edited', fs.existsSync(artDir(l1after.ref.artifact)) && readArt(l1after.ref.artifact).edited === true)
+    check('and the other lessons are untouched', (await lessonOf(L2)).lesson.blocks.find(b => b.artifact_type === 'knowledge-check').ref.artifact === refBefore)
+    setMode('ok')
+    check('a knowledge check that was never edited regenerates with no warning', !(await page.locator('.context-panel [role=alert]').count()))
+    await page.getByRole('button', { name: /^Regenerate knowledge check/ }).click()
+    await kcBlock1.locator('.context-panel button:has-text("Regenerate")').click()
+    check('(unedited) the panel does not ask first', !(await kcBlock1.locator('.context-panel [role=alert]').count()))
+    await page.waitForFunction(() => !document.querySelector('.context-panel'))
+
+    console.log('=== KEYBOARD ONLY ===')
+    await go(`${base}/lessons/${L3}`)
+    await page.keyboard.press('Tab'); await page.keyboard.press('Enter')    // skip link
+    const kcBlock3 = page.locator('.lesson-artifact').filter({ hasText: 'Knowledge Check' })
+    const edit3 = page.getByRole('button', { name: /^Edit knowledge check/ })
+    await edit3.focus(); await page.keyboard.press('Enter')
+    // L3 shares refBefore with L2 -> the warning first
+    await kcBlock3.locator('.artifact-edit-gate').waitFor()
+    check('keyboard: the warning takes focus', await page.evaluate(() => !!document.activeElement.closest('.artifact-edit-gate')))
+    await page.keyboard.press('Tab'); check('keyboard: Tab reaches "Edit everywhere"', (await activeName()) === 'Edit everywhere')
+    await page.keyboard.press('Enter'); await editor().waitFor()
+    check('keyboard: focus lands in the first field', await page.evaluate(() => document.activeElement.tagName === 'TEXTAREA' && !!document.activeElement.closest('form')))
+    await page.keyboard.type(' (typed)')
+    check('keyboard: typing edits the field', (await editor().getByLabel('Task setup').inputValue()).includes('(typed)'))
+    let reached = false
+    for (let i = 0; i < 40 && !reached; i++) { await page.keyboard.press('Tab'); reached = (await activeName()) === 'Question 1: option A is the key' }
+    check('keyboard: Tab reaches the key radio group (the checked one)', reached)
+    await page.keyboard.press('ArrowDown')
+    check('keyboard: the arrow key moves the key to option B (native radio behaviour)', await editor().getByLabel('Question 1: option B is the key').isChecked() && !(await editor().getByLabel('Question 1: option A is the key').isChecked()))
+    for (let i = 0; i < 80 && (await activeName()) !== 'Save changes'; i++) await page.keyboard.press('Tab')
+    check('keyboard: Tab reaches Save changes', (await activeName()) === 'Save changes')
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => !document.querySelector('form[aria-label="Edit knowledge check"]'))
+    check('keyboard: saving returns focus to Edit and announces it', /^Edit knowledge check/.test(await activeName()) && /Saved your changes/.test(await status().textContent()))
+    check('keyboard: nothing trapped, and the save kept exactly one key', readArt(refBefore).items[0].options.filter(o => o.correct).length === 1 && readArt(refBefore).items[0].options[1].correct === true)
+    await edit3.focus(); await page.keyboard.press('Enter')
+    await kcBlock3.locator('.artifact-edit-gate').waitFor().catch(() => {})
+    if (await kcBlock3.locator('.artifact-edit-gate').count()) { await page.keyboard.press('Tab'); await page.keyboard.press('Tab'); await page.keyboard.press('Tab'); await page.keyboard.press('Enter') }
+    else { for (let i = 0; i < 80 && !/^Cancel/.test(await activeName()); i++) await page.keyboard.press('Tab'); await page.keyboard.press('Enter') }
+    await page.waitForTimeout(300)
+    check('keyboard: Cancel leaves the editor and returns focus to Edit', /^Edit knowledge check/.test(await activeName()) && !(await editor().count()))
+
+    console.log('=== THE LEARNER VIEW ===')
+    await go(`${base}/lessons/${L1}/preview`)
+    const pv = await page.locator('main').innerText()
+    check('learners get the edited words', pv.includes('(new)') || pv.includes('STEM'))
+    check('learners never see editor furniture: "Edited by you", "Needs a key", option letters as keys, notes', !/Edited by you|Needs a key|is the key|Writing notes|Edit knowledge check/.test(pv))
+    await scan('learner preview with an edited knowledge check')
+    await go(`${base}/lessons/${L2}/preview`)
+    await scan('learner preview: another lesson using the shared edit')
+
+    check('no page errors', errors.length === 0, errors)
+  } finally {
+    await browser.close()
+    await h.stopEnv()
+  }
+  h.finish()
+}
+main().catch(e => { console.error(e); process.exit(1) })

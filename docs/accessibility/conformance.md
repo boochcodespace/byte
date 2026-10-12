@@ -14,9 +14,9 @@ below).
 work touches that criterion, and add a row for any new view (an export is its own
 view). See `CLAUDE.md` for the definition of done.
 
-- Last updated: accessibility phase, commit 4.
+- Last updated: D2 commit 1 (knowledge check editor).
 - Automated evidence: `npm run test:a11y` (axe on every state in both views, keyboard
-  runs, API checks). Test file names below are in `tests/a11y/`.
+  runs, API checks). Test file names below are in `tests/a11y/`, and `ui-artifact-edit` / `api-artifact-edit` are in `tests/artifacts/`.
 - Manual evidence: `docs/accessibility/voiceover-checklist.md`. The checklist has to be
   run by a person on a Mac. **No run is recorded in its log yet**, so every "Pass" below
   rests on automation and the code until a person signs the checklist.
@@ -58,7 +58,7 @@ WCAG 2.2 removed success criterion 4.1.1 (Parsing), so it is not listed.
 | 1.4.11 | Non-text Contrast | AA | Pass | Both | Control and card borders use `--color-border-strong` (3:1 or more on white, the page, and the accent tint) and the focus ring is 3:1 (`ui-axe-keyboard`, Contrast tokens). Design pass must keep these (`design-pass-requirements.md`). |
 | 1.4.12 | Text Spacing | AA | Pass | Both | Line height 1.5, letter 0.12em, word 0.16em, paragraph 2em applied: no clipped text or scroll on the authoring lesson and learner preview (`ui-axe-keyboard`). |
 | 1.4.13 | Content on Hover or Focus | AA | Not applicable | Both | Nothing appears only on hover or focus. No tooltips or hover menus (menus open on press). |
-| 2.1.1 | Keyboard | A | Pass | Both | Keyboard-only runs: skip link, flip cards, knowledge check, scenario, tabs, the "Describe this visual" button, and the lesson editor (edit, save, remove, move, insert, regenerate, checker) in `ui-axe-keyboard` and `ui-checker-routes`. The source page artifact list is real buttons. |
+| 2.1.1 | Keyboard | A | Pass | Both | Keyboard-only runs: skip link, flip cards, knowledge check, scenario, tabs, the "Describe this visual" button, and the lesson editor (edit, save, remove, move, insert, regenerate, checker) in `ui-axe-keyboard` and `ui-checker-routes`. The source page artifact list is real buttons. The knowledge check editor (source page and lessons) is keyboard-only operable: open, edit, choose the key with the arrow keys, save, cancel (`ui-artifact-edit`). |
 | 2.1.2 | No Keyboard Trap | A | Pass | Both | Tabbing through each page (up to 160 stops) and every opened editor, menu and panel leaves them; Cancel returns focus. Checked in `ui-axe-keyboard`. |
 | 2.1.4 | Character Key Shortcuts | A | Pass | Learner preview | The only shortcuts are the left and right arrow keys inside a flip deck while focus is in it. They are not character keys, and Space and Enter keep their normal button action. |
 | 2.2.1 | Timing Adjustable | A | Pass | Both | No time limits for learners or authors. The lesson time meter is an estimate for authors and is named that way (`ui-axe-keyboard`, Time meter). "Saved" stays 6 seconds and is also announced; it is a status, not a limit. |
@@ -66,7 +66,7 @@ WCAG 2.2 removed success criterion 4.1.1 (Parsing), so it is not listed.
 | 2.3.1 | Three Flashes or Below Threshold | A | Pass | Both | Nothing flashes. |
 | 2.4.1 | Bypass Blocks | A | Pass | Authoring | Skip link to the main content (first Tab stop) plus landmarks (`ui-axe-keyboard`). The learner preview has no repeated header. |
 | 2.4.2 | Page Titled | A | Pass | Both | Every route has its own title ending "— Byte", for example "Settings — Byte" and "<lesson> (learner preview) — Byte" (`ui-axe-keyboard`, 8 routes). |
-| 2.4.3 | Focus Order | A | Pass | Both | Order follows the layout. Opening an editor or menu moves focus in; closing returns it to the opener; removing moves focus to the page title; a page change moves focus to the new h1 (`ui-axe-keyboard`, `ui-checker-routes`). |
+| 2.4.3 | Focus Order | A | Pass | Both | Order follows the layout. Opening an editor or menu moves focus in; closing returns it to the opener; removing moves focus to the page title; a page change moves focus to the new h1 (`ui-axe-keyboard`, `ui-checker-routes`). Editor open: focus into the first field; save or cancel: focus back to the Edit button; the shared-artifact warning takes focus (`ui-artifact-edit`). |
 | 2.4.4 | Link Purpose (In Context) | A | Pass | Both | Links name their destination. The checker flags vague link text in lesson content (`api-checker`). |
 | 2.4.5 | Multiple Ways | AA | Pass | Authoring | Header link to Projects, breadcrumbs on every inner page, and lists of projects, sources and lessons. |
 | 2.4.6 | Headings and Labels | AA | Pass | Both | Descriptive headings and labels. Repeated buttons have unique names that start with their visible text ("Edit chunk: …"): `ui-axe-keyboard` checks that no two buttons share a name. |
@@ -85,14 +85,14 @@ WCAG 2.2 removed success criterion 4.1.1 (Parsing), so it is not listed.
 | 3.2.3 | Consistent Navigation | AA | Pass | Authoring | Header and breadcrumbs are in the same place on every page. |
 | 3.2.4 | Consistent Identification | AA | Pass | Both | Same actions use the same names (Edit, Remove, Regenerate, Insert here, Move up, Move down). |
 | 3.2.6 | Consistent Help | A | Not applicable | Both | Byte has no help mechanism on its pages. |
-| 3.3.1 | Error Identification | A | Pass | Authoring | Errors are text and announced as alerts (`ErrorState`, a failed alt text draft, empty review reason); messages name the field or action. Checked in `ui-alt-text`, `ui-checker-routes`. |
-| 3.3.2 | Labels or Instructions | A | Pass | Authoring | Every field has a visible label; optional fields say so. Axe `label` and `select-name`: 0 violations on every page. |
-| 3.3.3 | Error Suggestion | AA | Pass | Authoring | Messages say what to do ("Say why this is fine", "Write the visual note first", "Pick fewer sources"). |
+| 3.3.1 | Error Identification | A | Pass | Authoring | Errors are text and announced as alerts (`ErrorState`, a failed alt text draft, empty review reason); messages name the field or action. Checked in `ui-alt-text`, `ui-checker-routes`. Editor errors are alerts that name the question and option ("Question 1, option C: the answer text cannot be empty."); a save blocked for a missing key names the questions (`api-artifact-edit`, `ui-artifact-edit`). |
+| 3.3.2 | Labels or Instructions | A | Pass | Authoring | Every field has a visible label; optional fields say so. Axe `label` and `select-name`: 0 violations on every page. Every editor field has a visible label that names its question and option. |
+| 3.3.3 | Error Suggestion | AA | Pass | Authoring | Messages say what to do ("Say why this is fine", "Write the visual note first", "Pick fewer sources"). The needs-a-key flag and the blocked-save alert say what to do ("Choose the one strongest answer"). |
 | 3.3.4 | Error Prevention (Legal, Financial, Data) | AA | Not applicable | Authoring | No legal or financial transactions. Removing a block asks for confirmation anyway, and an artifact's files are never deleted. |
 | 3.3.7 | Redundant Entry | A | Pass | Authoring | Learner context is prefilled from the source; nothing is asked twice. |
 | 3.3.8 | Accessible Authentication (Minimum) | AA | Not applicable | Authoring | Byte has no sign-in. The API key field is a setting, allows paste, and needs no memory or puzzle. |
-| 4.1.2 | Name, Role, Value | A | Pass | Both | Axe: 0 violations (names, roles, states) on every state. Native elements are used. The time meter bar has a name and value text; the flip card buttons, the "Describe this visual" disclosure (`aria-expanded`), tabs (roving tabindex, `aria-selected`) and option buttons (`aria-pressed`) are checked. VoiceOver: checklist. |
-| 4.1.3 | Status Messages | AA | Pass | Both | Polite live regions announce flip sides and card changes, feedback, saves, route changes ("Now on …"), moves, removals, going over or back under the time budget, and checker results; errors use `role="alert"`. Checked in `ui-axe-keyboard`, `ui-checker-routes`, `ui-alt-text`. VoiceOver: checklist. |
+| 4.1.2 | Name, Role, Value | A | Pass | Both | Axe: 0 violations (names, roles, states) on every state. Native elements are used. The time meter bar has a name and value text; the flip card buttons, the "Describe this visual" disclosure (`aria-expanded`), tabs (roving tabindex, `aria-selected`) and option buttons (`aria-pressed`) are checked. VoiceOver: checklist. The key radios are native radio buttons named "Question 1: option A is the key" (`ui-artifact-edit`). |
+| 4.1.3 | Status Messages | AA | Pass | Both | Polite live regions announce flip sides and card changes, feedback, saves, route changes ("Now on …"), moves, removals, going over or back under the time budget, and checker results; errors use `role="alert"`. Checked in `ui-axe-keyboard`, `ui-checker-routes`, `ui-alt-text`. VoiceOver: checklist. Editor saves ("Saved your changes to the knowledge check.", "No changes to save…"), copies, and the blocked-save alert are announced (`ui-artifact-edit`). |
 
 ## Authoring tool support (ATAG 2.0 Part B)
 
@@ -112,6 +112,8 @@ WCAG 2.2 removed success criterion 4.1.1 (Parsing), so it is not listed.
 - **Review matching is exact.** A review belongs to the exact text that caused the issue.
 - **Reading level and acronyms** are advisory notes only. They never block an export.
 - **There is no export yet.** When one exists it needs its own view in this file and must pass the same axe, keyboard and VoiceOver checks as the learner preview.
+- **Artifact editors (D2).** Version 1 edits text only; there is no adding or removing of questions, options, cards, or decisions. The knowledge check editor is done; the flip deck and scenario editors follow. Writing notes (item-writing advice) are advisory and never block saving; the key rule is the only blocker.
+- **Shared artifacts.** An artifact is shared by every lesson that references it. Before an edit that would change other lessons, the author chooses to edit everywhere or make a copy for this lesson.
 - **No dragging.** Reordering is by buttons. Drag and drop is out of scope.
 
 ## Known gaps
