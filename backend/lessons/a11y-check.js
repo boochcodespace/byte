@@ -11,6 +11,7 @@
 //   decorative-no-reason     marked decorative without a reason
 //   alt-text-long            alt text over 125 characters (a soft guide)
 //   deck-missing-alt-text    a flip deck used in the lesson has a visual but no alt text
+//   knowledge-check-no-key   a knowledge check question with no key or several keys
 //   missing-heading          a chunk with no real heading, or a lesson with no headings at all
 //   heading-reads-like-text  a chunk title that is a whole paragraph
 //   color-only-reference     "the green option", "the button on the left", "the round icon"
@@ -25,6 +26,7 @@
 // the issue back.
 
 const crypto = require('crypto')
+const { needsKey } = require('../lib/artifact-edit')
 
 const ALT_SOFT_LIMIT = 125
 
@@ -228,6 +230,16 @@ function checkLesson(lesson, artifacts) {
       push({ rule: 'deck-missing-alt-text', severity: 'warning', blockId: b.id, where, fix: 'regenerate',
         key: `deck-missing-alt-text:${b.id}:${b.ref.artifact}`,
         message: 'This flip card deck describes a visual but has no alt text. Regenerate it, or replace it with a newer deck, which includes alt text.' })
+    }
+
+    // ── knowledge checks used in the lesson ─────────────────────────
+    if (b.kind === 'artifact' && b.artifact_type === 'knowledge-check' && artifact) {
+      for (const p of needsKey(artifact)) {
+        push({ rule: 'knowledge-check-no-key', severity: 'warning', blockId: b.id, where, fix: 'edit',
+          question: p.item, detail: `question ${p.item + 1}`,
+          key: `knowledge-check-no-key:${b.id}:${p.item}:${b.ref.artifact}`,
+          message: `Question ${p.item + 1} ${p.keys === 0 ? 'has no option marked as the key' : `has ${p.keys} options marked as the key`}, so learners get no clear strongest answer. Open the editor and mark exactly one.` })
+      }
     }
 
     // ── headings ────────────────────────────────────────────────────

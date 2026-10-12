@@ -665,3 +665,9 @@
   gap: 10px;
   margin-bottom: 8px;
 }
+
+/* While an artifact is being edited on the source page, the editor gets the whole
+   width; the sidebar drops below it. */
+.source-detail-layout.is-editing {
+  grid-template-columns: minmax(0, 1fr);
+}

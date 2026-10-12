@@ -134,6 +134,7 @@ function LessonDetail() {
   const [pickerFor, setPickerFor] = useState(null)       // block whose picker is open
   const [contextFor, setContextFor] = useState(null)     // block whose context panel is open
   const [editFor, setEditFor] = useState(null)           // tabs block whose editor is open
+  const [editQuestion, setEditQuestion] = useState(null)       // question to open an artifact editor at (from the checker's Fix link)
   const [insertFlow, setInsertFlow] = useState(null)      // { after, option, mode } while inserting
   const [recallDay, setRecallDay] = useState('')       // day chosen for an inserted recall prompt
   const [announce, setAnnounce] = useState('')           // screen-reader message after a move
@@ -245,7 +246,7 @@ function LessonDetail() {
   const generateArtifact = (block, context) =>
     runBlock(block.id, () => api.post(`${base}/blocks/${block.id}/artifact`, { mode: 'new', context }))
   // Open the context panel / picker / editor for a block. Only one is open.
-  const closeEdit = id => { setEditFor(null); pendingFocus.current = `edit:${id}` }
+  const closeEdit = id => { setEditFor(null); setEditQuestion(null); pendingFocus.current = `edit:${id}` }
   const closeContext = id => { setContextFor(null); pendingFocus.current = `regen:${id}` }
   const closePicker = id => { setPickerFor(null); pendingFocus.current = `regen:${id}` }
   // The checker's Fix button: go to the block and open what fixes the issue.
@@ -256,6 +257,12 @@ function LessonDetail() {
     closeAll()
     const editable = (block.kind === 'chunk' || (block.kind === 'tabs' && block.state === 'ready')) && issue.fix === 'edit'
     if (editable) { setEditFor(block.id); return }
+    // an artifact with a text editor opens it, at the flagged question when there is one
+    if (block.kind === 'artifact' && issue.fix === 'edit' && EDITABLE_ARTIFACT_TYPES.has(block.artifact_type)) {
+      setEditQuestion(issue.question ?? null)
+      setEditFor(block.id)
+      return
+    }
     pendingFocus.current = `regen:${block.id}`
     setFixTick(t => t + 1)
   }
@@ -496,6 +503,7 @@ function LessonDetail() {
             source={block.ref.source}
             folder={block.ref.artifact}
             lessonId={lessonId}
+            focusQuestion={editQuestion}
             onSaved={resp => artifactSaved(block, resp)}
             onCancel={() => closeEdit(block.id)}
             onCopy={() => copyForLesson(block)}

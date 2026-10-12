@@ -44,7 +44,7 @@ WCAG 2.2 removed success criterion 4.1.1 (Parsing), so it is not listed.
 | 1.2.3 | Audio Description or Media Alternative (Prerecorded) | A | Not applicable | Both | No audio or video. |
 | 1.2.4 | Captions (Live) | AA | Not applicable | Both | No live media. |
 | 1.2.5 | Audio Description (Prerecorded) | AA | Not applicable | Both | No video. |
-| 1.3.1 | Info and Relationships | A | Pass | Both | Real headings (one `h1`, no skipped levels: `ui-axe-keyboard` headings check on 8 pages), landmarks (banner, `Main` and `Breadcrumb` navigation, main), lists, fieldsets with legends, labels tied to fields, groups with names. Axe: 0 violations. |
+| 1.3.1 | Info and Relationships | A | Pass | Both | Real headings (one `h1`, no skipped levels: `ui-axe-keyboard` headings check on 8 pages), landmarks (banner, `Main` and `Breadcrumb` navigation, main), lists, fieldsets with legends, labels tied to fields, groups with names. Axe: 0 violations. Artifact editors: labels above fields, question cards are headings holding one toggle button, the key is a fieldset with a legend (`ui-editor-layout`). |
 | 1.3.2 | Meaningful Sequence | A | Pass | Both | DOM order matches reading order. The hidden side of a flip card is `aria-hidden` and `inert`, so the answer is not read before the flip (`ui-axe-keyboard`). VoiceOver: checklist, Flip cards. |
 | 1.3.3 | Sensory Characteristics | A | Pass | Both | Byte's own instructions never rely on shape, color, or position. Generated content is held to the same rule by the Accessibility Rules prompt and the checker's color, position and shape rule (`api-checker`). |
 | 1.3.4 | Orientation | AA | Pass | Both | Nothing locks portrait or landscape. Reflow tested at 320 px wide. |
@@ -54,7 +54,7 @@ WCAG 2.2 removed success criterion 4.1.1 (Parsing), so it is not listed.
 | 1.4.3 | Contrast (Minimum) | AA | Pass | Both | Axe `color-contrast`: 0 violations on 35 states in `ui-axe-keyboard`, plus every state in the other browser files. Token ratios are asserted (`ui-axe-keyboard`, Contrast tokens). |
 | 1.4.4 | Resize Text | AA | Pass | Both | Reflows at 320 CSS px (equal to 400% zoom on a 1280 px window) with no horizontal scroll (`ui-axe-keyboard`, 6 pages and views). Text uses relative layout and is not clipped. |
 | 1.4.5 | Images of Text | AA | Not applicable | Both | No images of text. Visuals are described, not embedded. |
-| 1.4.10 | Reflow | AA | Pass | Both | No horizontal scroll at 320 CSS px on projects, source, authoring lesson, learner preview, blueprint editor, and settings (`ui-axe-keyboard`). |
+| 1.4.10 | Reflow | AA | Pass | Both | No horizontal scroll at 320 CSS px on projects, source, authoring lesson, learner preview, blueprint editor, and settings (`ui-axe-keyboard`). The artifact editor reflows at 320 CSS px with no horizontal scroll; option fields stack below 900 px (`ui-editor-layout`). |
 | 1.4.11 | Non-text Contrast | AA | Pass | Both | Control and card borders use `--color-border-strong` (3:1 or more on white, the page, and the accent tint) and the focus ring is 3:1 (`ui-axe-keyboard`, Contrast tokens). Design pass must keep these (`design-pass-requirements.md`). |
 | 1.4.12 | Text Spacing | AA | Pass | Both | Line height 1.5, letter 0.12em, word 0.16em, paragraph 2em applied: no clipped text or scroll on the authoring lesson and learner preview (`ui-axe-keyboard`). |
 | 1.4.13 | Content on Hover or Focus | AA | Not applicable | Both | Nothing appears only on hover or focus. No tooltips or hover menus (menus open on press). |
@@ -71,7 +71,7 @@ WCAG 2.2 removed success criterion 4.1.1 (Parsing), so it is not listed.
 | 2.4.5 | Multiple Ways | AA | Pass | Authoring | Header link to Projects, breadcrumbs on every inner page, and lists of projects, sources and lessons. |
 | 2.4.6 | Headings and Labels | AA | Pass | Both | Descriptive headings and labels. Repeated buttons have unique names that start with their visible text ("Edit chunk: …"): `ui-axe-keyboard` checks that no two buttons share a name. |
 | 2.4.7 | Focus Visible | AA | Pass | Both | 3px outline with a white halo on every interactive element (`ui-axe-keyboard`, focus indicator check; axe and the keyboard runs). |
-| 2.4.11 | Focus Not Obscured (Minimum) | AA | Pass | Both | `scroll-padding-top: 170px` keeps focus clear of the sticky header and time meter: Tab and Shift+Tab through the authoring page and the preview, 0 stops under sticky UI (`ui-axe-keyboard`). |
+| 2.4.11 | Focus Not Obscured (Minimum) | AA | Pass | Both | `scroll-padding-top: 170px` keeps focus clear of the sticky header and time meter: Tab and Shift+Tab through the authoring page and the preview, 0 stops under sticky UI (`ui-axe-keyboard`). The editors' sticky Save bar never covers a focused field: `scroll-padding-bottom` plus a Tab and Shift+Tab run through the editor (`ui-editor-layout`). |
 | 2.5.1 | Pointer Gestures | A | Not applicable | Both | No multipoint or path-based gestures. |
 | 2.5.2 | Pointer Cancellation | A | Pass | Both | Actions run on the click (up) event only. |
 | 2.5.3 | Label in Name | A | Pass | Both | Accessible names start with the visible text, for example "Edit chunk: …" for "Edit". Flip card buttons are named by their visible words. |

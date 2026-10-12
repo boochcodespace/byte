@@ -163,7 +163,7 @@ function SourceDetail() {
 
       <h1>{source.title}</h1>
 
-      <div className="source-detail-layout">
+      <div className={`source-detail-layout${editingArtifact ? ' is-editing' : ''}`}>
         <div className="source-main">
           <div className="card">
             <div className="card-header">

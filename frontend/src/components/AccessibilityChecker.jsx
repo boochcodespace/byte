@@ -23,6 +23,7 @@ const RULE_TITLE = {
   'decorative-no-reason': 'decorative visual without a reason',
   'alt-text-long': 'long alt text',
   'deck-missing-alt-text': 'flip deck without alt text',
+  'knowledge-check-no-key': 'knowledge check has no key',
   'missing-heading': 'missing heading',
   'heading-reads-like-text': 'heading that reads like text',
   'color-only-reference': 'color, position or shape reference',

@@ -227,23 +227,34 @@ Open a knowledge check, then press **Edit** ("Edit knowledge check").
 - [ ] **Make a copy for this lesson.** It announces "Made a copy for this lesson. Now
       editing the copy." and opens the editor with no second warning. The other lessons
       keep the original.
-- [ ] **Editor opens.** Focus is in the first field ("Task setup"). Each question is a
-      group named "Question 1", "Question 2", and so on.
-- [ ] **Fields.** Every field reads its full name: "Question 1 text", "Question 1,
-      option A text", "Question 1, option A explanation". The options are in the stored
+- [ ] **Editor opens.** Focus is in "Task setup". Every field has its label above it
+      and reads its full name: "Question 1: Question text", "Question 1, option A:
+      Answer text", "Question 1, option A: Explanation". The options are in the stored
       order, A then B then C. A line says learners see them in a shuffled order.
-- [ ] **The key.** Each question has one choice per option, read as "Question 1: option A
-      is the key, radio button, selected, 1 of 3". Use **Tab** to reach the group and the
-      **arrow keys** to move the key to another option. Only one can be selected.
-- [ ] **Writing notes.** Under each question you find "Writing notes for question 1
-      (advice only, never blocks saving)". With the rotor (VO+U) it is in the Headings
-      list. Make the key the longest option: a note names the option and says why. Notes
-      are not announced on their own while you type.
+- [ ] **Question cards.** Each question is a section with a heading and one button, for
+      example "Question 1: What do you do first?, Key: A, expanded". Open the rotor
+      (VO+U), then Headings, to jump between questions. Press the button: it reads
+      "collapsed", the fields are no longer reachable with Tab, and the status ("Key: A",
+      "Needs a key", "2 writing notes") is still read. Press it again to reopen.
+- [ ] **The key.** Each question has a group "Which option is the key? (question 1)" with
+      one radio per option, read as "Option A, radio button, selected, 1 of 3". Use
+      **Tab** to reach the group and the **arrow keys** to move the key. Only one can be
+      selected, and a "Key" badge appears next to it.
+- [ ] **Writing advice.** Directly under each question's text you find "Writing advice for
+      question 1 (advice only, never blocks saving)" (a heading in the rotor). Make the key
+      the longest option: a note names the option and says why. Notes are not announced on
+      their own while you type.
+- [ ] **Save and Cancel.** They are the last two controls in the editor. Scroll or Tab down
+      through a long editor: the Save bar stays at the bottom of the window, and no field you
+      Tab to is hidden behind it.
 - [ ] **Older file with no key or several keys.** The question reads "Needs a key. No
       option is marked as the key." (or "3 options are marked"). No radio is selected.
       Press **Save changes**: you hear an alert "Save is blocked. Question 2 needs exactly
       one option marked as the key." and focus moves to the "Needs a key" line. Choose a
       key and save: it saves.
+- [ ] **From the accessibility checker.** A knowledge check with no key is listed as a
+      warning ("Fix knowledge check has no key "question 2" …"). Press its Fix button: the
+      editor opens and focus lands on that question's "Needs a key" line.
 - [ ] **Save.** Press **Save changes**. You hear "Saved your changes to the knowledge
       check." Focus returns to the Edit button. With nothing changed you hear "No changes
       to save in the knowledge check."

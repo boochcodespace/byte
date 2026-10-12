@@ -177,6 +177,21 @@ async function main() {
     check('the edited version stays in the project, intact', fs.existsSync(artDir(f1)) && readArt(f1).edited === true && readArt(f1).items[0].stem === long.items[0].stem)
     check('another lesson that used the edited artifact is not affected', (await lessonOf(idA)).lesson.blocks.some(b => b.ref && b.ref.artifact !== f1) && (await get(f1)).data.usage.length === 0)
 
+    console.log('The accessibility checker flags a knowledge check with no key')
+    await newKC(); await sleep(5)
+    const f3 = (await kcList())[0].folder
+    const leg = readArt(f3); leg.items[0].options.forEach(o => { o.correct = false }); leg.items[2].options.forEach(o => { o.correct = true }); writeArt(f3, leg)
+    const idK = await newApprovedLesson(); setMode('ok'); await api('POST', `${L}/${idK}/text/generate`)
+    await accept(idK, f3)
+    r = await api('GET', `${L}/${idK}/a11y`)
+    const nk = r.data.issues.filter(i => i.rule === 'knowledge-check-no-key')
+    check('one warning per flagged question, each with its question number and a Fix to the editor', nk.length === 2 && nk.every(i => i.severity === 'warning' && i.fix === 'edit' && i.blockId) && JSON.stringify(nk.map(i => i.question)) === '[0,2]', nk)
+    check('the messages say what is wrong in plain words', /Question 1 has no option marked as the key/.test(nk[0].message) && /Question 3 has 3 options marked as the key/.test(nk[1].message), nk.map(i => i.message))
+    check('they are warnings, so they do not block an export', !r.data.issues.some(i => i.rule === 'knowledge-check-no-key' && i.severity === 'error'))
+    const fixed3 = payloadOf(readArt(f3)); fixed3.items[0].options[0].correct = true; fixed3.items[2].options.forEach((o, i) => { o.correct = i === 0 })
+    await put(f3, fixed3)
+    check('once each question has a key the warnings are gone', (await api('GET', `${L}/${idK}/a11y`)).data.issues.filter(i => i.rule === 'knowledge-check-no-key').length === 0)
+
     console.log('Other artifact types are not editable yet')
     await api('POST', GEN, { artifactType: 'flip-card-deck' })
     const deck = (await api('GET', `${A}?type=flip-card-deck`)).data[0]

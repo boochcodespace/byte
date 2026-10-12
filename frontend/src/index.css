@@ -933,7 +933,7 @@ code {
    =================================================================== */
 html {
   scroll-padding-top: 170px;
-  scroll-padding-bottom: 24px;
+  scroll-padding-bottom: 96px;   /* clear of a sticky action bar (editors), WCAG 2.4.11 */
 }
 
 *:focus-visible {

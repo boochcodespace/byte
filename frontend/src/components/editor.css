@@ -1,0 +1,236 @@
+/* Shared layout for the artifact editors (D2). A usability fix, not the design pass.
+   - labels sit ABOVE their fields, in sentence case
+   - fields fill the editor width (up to 900px for long text) and grow with their content
+   - option text and explanation sit side by side when the editor is 900px wide or more
+     (a container query on the editor itself, not the window), and stack below that
+   - question and card sections collapse
+   - Save and Cancel sit in a sticky bar; html's scroll-padding-bottom keeps a focused
+     field clear of it (WCAG 2.4.11) */
+
+.ae {
+  container-type: inline-size;
+  container-name: ae;
+  width: 100%;
+}
+
+.ae-intro {
+  max-width: 900px;
+  margin: 0 0 16px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* a field: label above, then the box */
+.ae-field {
+  margin: 0 0 14px;
+  max-width: 900px;
+}
+.ae-cols .ae-field {
+  max-width: none;
+}
+.ae-field > label {
+  display: block;
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.ae-field-hint {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+.ae textarea.grow-textarea,
+.ae input[type='text'] {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ae textarea.grow-textarea {
+  resize: none;
+  overflow: hidden;   /* it grows instead, so there is never an inner scrollbar */
+}
+
+/* question / card sections */
+.ae-card {
+  margin: 0 0 16px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.ae-card-head {
+  margin: 0;
+  font-size: 16px;
+}
+.ae-card-toggle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.ae-card-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ae-card-title::before {
+  content: '▾ ';
+  color: var(--color-text-secondary);
+}
+.ae-card-toggle[aria-expanded='false'] .ae-card-title::before {
+  content: '▸ ';
+}
+.ae-card-status {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+.ae-card-body {
+  padding: 14px;
+}
+
+/* options */
+.ae-options {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.ae-options > legend {
+  margin: 0 0 8px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.ae-option {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--color-border-strong);
+  background: var(--color-bg);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.ae-option-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+  min-height: 24px;
+}
+.ae-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  min-height: 24px;
+  cursor: pointer;
+}
+.ae-key-badge {
+  padding: 1px 8px;
+  border: 1px solid var(--color-success);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-success);
+}
+.ae-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 16px;
+}
+@container ae (min-width: 900px) {
+  .ae-cols {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/* advice and flags */
+.ae-notes {
+  max-width: 900px;
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}
+.ae-notes-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+.ae-notes ul {
+  margin: 0;
+  padding-left: 20px;
+}
+.ae-flag {
+  max-width: 900px;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-error);
+  border-left-width: 5px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+/* the sticky Save / Cancel bar */
+.ae-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+}
+.ae-actions .ae-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* the visual (text alternative) group inside an editor reads like the rest */
+.ae .visual-alt {
+  max-width: 900px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}
+.ae .form-group {
+  margin-bottom: 12px;
+}
+.ae .form-group label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.ae .form-group textarea {
+  min-height: 40px;
+}

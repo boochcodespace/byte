@@ -23,12 +23,13 @@ import KnowledgeCheckEditor from './KnowledgeCheckEditor'
 //   lessonId                       set when editing from a lesson block
 //   onSaved(resp)                  called after a successful save
 //   onCancel()                     close without saving
+//   focusQuestion                  open the editor at this question (0-based)
 //   onCopy()                       make a copy (the page does the work and
 //                                  re-mounts this shell on the copy); may be async
 
 const EDITORS = { 'knowledge-check': KnowledgeCheckEditor }
 
-function ArtifactEditShell({ projectSlug, source, folder, lessonId, onSaved, onCancel, onCopy }) {
+function ArtifactEditShell({ projectSlug, source, folder, lessonId, focusQuestion, onSaved, onCancel, onCopy }) {
   const url = `/api/projects/${projectSlug}/artifacts/${source}/${folder}`
   const loadAction = useAsyncAction()
   const saveAction = useAsyncAction()
@@ -115,6 +116,7 @@ function ArtifactEditShell({ projectSlug, source, folder, lessonId, onSaved, onC
         error={saveAction.error ? saveAction.error.userMessage : ''}
         onSave={save}
         onCancel={onCancel}
+        focusQuestion={focusQuestion}
       />
     </div>
   )
