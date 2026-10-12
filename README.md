@@ -135,6 +135,33 @@ If you used an earlier version of Byte (with a flat `~/Byte/sources/` folder), B
 
 Nothing in `~/Byte/` is ever committed to this repository.
 
+## Accessibility
+
+Byte treats accessibility as a release requirement: **WCAG 2.2 Level AA** for the
+authoring app, the lesson page, the learner preview, and every artifact renderer,
+plus ATAG 2.0 Part B (Byte helps you make accessible lessons and never generates
+inaccessible content by default).
+
+- **Check a lesson:** open a lesson and press **Check accessibility**. It lists
+  missing alt text, headings, color or position wording, vague links, reading
+  level, and acronyms, with a **Fix** button for each. Use **Preview as learner**
+  to see exactly what a learner gets.
+- **Run the accessibility tests** (axe on every page and artifact state in both
+  views, keyboard-only runs, and API checks):
+
+  ```bash
+  npm run test:a11y:setup   # first time only: installs the test packages and Chromium
+  npm run test:a11y         # stop `npm run dev` first; uses ports 3001 and 5173
+  ```
+
+  `npm run test:a11y -- api` runs only the API files and `-- ui` only the browser
+  files. The tests use a mock AI model and a throwaway folder, so they cost nothing
+  and never touch your real `~/Byte` data.
+- **Docs** (in `docs/accessibility/`): `conformance.md` (every WCAG 2.2 A and AA
+  criterion with status and evidence), `voiceover-checklist.md` (manual screen
+  reader steps), and `design-pass-requirements.md` (minimums any restyle must keep).
+- `CLAUDE.md` holds the definition of done for contributors.
+
 ## Smoke Test
 
 To verify your API key is working without opening the browser:

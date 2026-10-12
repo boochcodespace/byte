@@ -1,0 +1,14 @@
+{
+  "name": "byte-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Byte's accessibility test suite (axe, keyboard runs, API checks). Kept apart so the app's own dependencies stay small.",
+  "scripts": {
+    "a11y": "node run-a11y.js",
+    "setup": "playwright-core install chromium"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "playwright-core": "^1.64.0"
+  }
+}

@@ -16,6 +16,8 @@
 //   color-only-reference     "the green option", "the button on the left", "the round icon"
 //   vague-link-text          "click here", "read more", ...
 //   empty-link-text          a link with no text
+//   reading-level            advisory: text above grade 8 (Flesch-Kincaid estimate)
+//   acronym-not-spelled-out  advisory: an acronym not spelled out where it first appears
 //   preview-skipped-*        blocks the learner preview leaves out
 //
 // An author can mark any issue as reviewed, with a reason. A review is tied
@@ -93,6 +95,97 @@ function learnerText(b, artifact) {
     }
   }
   return out
+}
+
+
+// ── advisory checks (severity "note", never block an export) ──────────
+
+// Flesch-Kincaid grade level, estimated from sentence length and syllables.
+// It is a rough guide: short blocks are skipped because the estimate is
+// unreliable on a few sentences.
+const READING_GRADE_LIMIT = 8
+const MIN_WORDS_FOR_GRADE = 25
+
+function countSyllables(word) {
+  let w = word.toLowerCase().replace(/[^a-z]/g, '')
+  if (!w) return 0
+  if (w.length <= 3) return 1
+  w = w.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '').replace(/^y/, '')
+  const groups = w.match(/[aeiouy]{1,2}/g)
+  return Math.max(1, groups ? groups.length : 1)
+}
+
+function readingGrade(text) {
+  const words = text.match(/[A-Za-z][A-Za-z'’-]*/g) || []
+  if (words.length < MIN_WORDS_FOR_GRADE) return null
+  const sentences = Math.max(1, (text.match(/[.!?]+(?:\s|$)/g) || []).length)
+  const syllables = words.reduce((n, w) => n + countSyllables(w), 0)
+  const grade = 0.39 * (words.length / sentences) + 11.8 * (syllables / words.length) - 15.59
+  return Math.round(grade * 10) / 10
+}
+
+// Capital-letter words that are ordinary English or well-known marks and
+// need no spelling out.
+const NOT_ACRONYMS = new Set([
+  'A', 'I', 'OK', 'AM', 'PM', 'TV', 'ID', 'US', 'USA', 'UK', 'EU', 'UN', 'PDF', 'URL', 'FAQ', 'FYI',
+  'NOT', 'AND', 'THE', 'ALL', 'FOR', 'YOU', 'ARE', 'BUT', 'NEW', 'ONE', 'TWO', 'ANY', 'CAN', 'DO', 'IF',
+  'IS', 'IT', 'NO', 'OF', 'ON', 'OR', 'SO', 'TO', 'UP', 'WE', 'AT', 'BE', 'BY', 'GO', 'HE', 'IN', 'ME',
+  'MY', 'AS', 'AN', 'NOW', 'WHY', 'HOW', 'WHO', 'WAS', 'HAS', 'HAD', 'MAY', 'MUST', 'ONLY', 'ALSO',
+  'NEVER', 'ALWAYS', 'WITH', 'THIS', 'THAT', 'FROM', 'YOUR', 'STOP', 'WAIT', 'NOTE', 'TIP', 'DAY',
+])
+const ACRONYM = /\b[A-Z]{2,6}s?\b/g
+
+// Is `acr` spelled out where it appears at `index` in `text`?
+//   "Domain Name System (DNS)"  or  "DNS (Domain Name System)"
+function spelledOut(text, index, acr) {
+  const before = text.slice(Math.max(0, index - 80), index)
+  const after = text.slice(index + acr.length, index + acr.length + 80)
+  if (/\(\s*$/.test(before) && /^\s*\)/.test(after)) {
+    // "Words Words (ACR)": the words before the bracket should start with the letters
+    const words = before.replace(/\(\s*$/, '').trim().split(/\s+/).slice(-acr.length - 2)
+    const initials = words.map(w => (w[0] || '').toUpperCase()).join('')
+    return initials.includes(acr[0]) || words.length >= 2
+  }
+  return /^\s*\(\s*[A-Za-z][^)]{3,}\)/.test(after)
+}
+
+function advisoryChecks(blocks, artifactFor, push) {
+  const firstSeen = new Map()   // acronym -> true once handled
+  for (const b of blocks) {
+    const where = blockLabel(b)
+    const items = learnerText(b, artifactFor(b))
+
+    // Reading grade: one estimate per prose block, over its body text.
+    if (['hook', 'chunk', 'apply', 'recall'].includes(b.kind) || (b.kind === 'tabs' && b.state !== 'proposed')) {
+      const prose = b.kind === 'tabs'
+        ? (b.tabs || []).map(t => t.body).join(' ')
+        : [b.body, b.kind === 'recall' ? b.answer : ''].join(' ')
+      const grade = readingGrade(prose)
+      if (grade !== null && grade > READING_GRADE_LIMIT) {
+        push({ rule: 'reading-level', severity: 'note', blockId: b.id, where, key: `reading-level:${b.id}:${fp(prose)}`,
+          detail: `grade ${grade}`,
+          message: `This text reads at about grade ${grade}. Aim for grade ${READING_GRADE_LIMIT} or lower: shorter sentences and everyday words. (This is a rough estimate.)` })
+      }
+    }
+
+    // Acronyms: flag the first appearance in the lesson if it is not spelled out.
+    for (const { where: spot, text } of items) {
+      if (spot === 'alt text' || spot === 'long description') continue
+      const letters = text.replace(/[^A-Za-z]/g, '')
+      if (letters && letters === letters.toUpperCase() && letters.length > 3) continue   // an all-caps line
+      ACRONYM.lastIndex = 0
+      for (const m of text.matchAll(ACRONYM)) {
+        const acr = m[0].replace(/s$/, '')
+        if (NOT_ACRONYMS.has(acr) || firstSeen.has(acr)) continue
+        firstSeen.set(acr, true)
+        if (spelledOut(text, m.index, m[0])) continue
+        push({ rule: 'acronym-not-spelled-out', severity: 'note', blockId: b.id, where,
+          fix: b.kind === 'artifact' ? 'regenerate' : 'edit', detail: acr,
+          key: `acronym-not-spelled-out:${b.id}:${acr}`,
+          message: `The ${spot} uses "${acr}" without spelling it out. Write the full name the first time, for example "Domain Name System (DNS)".` })
+      }
+    }
+  }
 }
 
 function checkLesson(lesson, artifacts) {
@@ -216,6 +309,8 @@ function checkLesson(lesson, artifacts) {
     push({ rule: 'missing-heading', severity: 'warning', blockId: null, where: 'lesson', fix: 'none', key: 'missing-heading:lesson',
       message: 'This lesson has no headings. Add at least one chunk with a title so learners can scan and jump by heading.' })
   }
+
+  advisoryChecks(blocks, b => (b.kind === 'artifact' && b.ref ? artifacts[`${b.ref.source}/${b.ref.artifact}`] || null : null), push)
 
   return issues
 }

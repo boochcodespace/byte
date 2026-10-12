@@ -28,6 +28,8 @@ const RULE_TITLE = {
   'color-only-reference': 'color, position or shape reference',
   'vague-link-text': 'vague link text',
   'empty-link-text': 'empty link text',
+  'reading-level': 'reading level',
+  'acronym-not-spelled-out': 'acronym not spelled out',
   'preview-skipped-proposal': 'suggestion learners will not see',
   'preview-skipped-missing-artifact': 'missing artifact',
   'preview-skipped-visual': 'visual learners will not see',

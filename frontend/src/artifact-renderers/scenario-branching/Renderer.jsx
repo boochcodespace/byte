@@ -42,6 +42,8 @@ function Renderer({ artifact }) {
   const continueRef = useRef(null)
   const topRef = useRef(null)      // decision counter / ending heading, focused after moving on
   const moved = useRef(false)
+  const choicesRef = useRef(null)    // the option buttons, so focus can return to them
+  const retried = useRef(false)
   const orders = useRef(new Map())   // nodeId → shuffled order of its choices
 
   // Start over whenever a different artifact is passed in
@@ -57,6 +59,11 @@ function Renderer({ artifact }) {
   // the feedback and the next action.
   useEffect(() => {
     if (picked !== null) continueRef.current?.focus()
+    else if (retried.current) {
+      // "Try a different choice": the feedback is gone, so focus goes back to the options
+      retried.current = false
+      choicesRef.current?.querySelector('button')?.focus()
+    }
   }, [picked])
 
   // After Continue or Try again, focus moves to the new decision or the
@@ -121,7 +128,7 @@ function Renderer({ artifact }) {
 
           <p className="scenario-situation">{node.situation}</p>
 
-          <div className="scenario-choices" role="group" aria-label="Your options">
+          <div className="scenario-choices" role="group" aria-label="Your options" ref={choicesRef}>
             {orderFor(node.id, choices.length).map(i => (
               <button
                 key={i}
@@ -156,7 +163,7 @@ function Renderer({ artifact }) {
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    onClick={() => setPicked(null)}
+                    onClick={() => { retried.current = true; setPicked(null) }}
                   >
                     Try a different choice
                   </button>
